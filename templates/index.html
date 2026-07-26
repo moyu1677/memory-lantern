@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>忆路明灯 · 智慧陪伴</title>
+    <style>
+        :root {
+            --page-bg: #f3f0e8;
+            --surface: #ffffff;
+            --surface-soft: #faf8f2;
+            --text: #202b2a;
+            --text-soft: #52605e;
+            --line: #d8dfdc;
+            --primary: #176b63;
+            --primary-dark: #0f524c;
+            --blue: #185fa8;
+            --blue-dark: #124a83;
+            --accent: #a94f12;
+            --accent-dark: #843b0b;
+            --danger: #a73535;
+            --focus: #f0b429;
+            --shadow: 0 18px 48px rgba(48, 62, 58, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            height: 100vh;
+            height: 100dvh;
+            margin: 0;
+            padding: clamp(12px, 2.5vw, 28px);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+                system-ui, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.95), transparent 30%),
+                radial-gradient(circle at 88% 85%, rgba(214, 231, 224, 0.8), transparent 28%),
+                var(--page-bg);
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+        }
+
+        .chat-container {
+            width: min(880px, 100%);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--surface);
+            border: 1px solid rgba(96, 114, 108, 0.24);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .app-header {
+            flex: none;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 18px 24px;
+            color: #fff;
+            background: linear-gradient(120deg, #125c56, #1e776e);
+        }
+
+        .app-mark {
+            width: 58px;
+            height: 58px;
+            flex: 0 0 58px;
+            display: grid;
+            place-items: center;
+            border-radius: 18px;
+            font-size: 30px;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+        }
+
+        .app-heading {
+            min-width: 0;
+        }
+
+        .app-title {
+            margin: 0;
+            font-size: clamp(24px, 3vw, 32px);
+            line-height: 1.25;
+            letter-spacing: 0.04em;
+        }
+
+        .app-subtitle {
+            margin: 5px 0 0;
+            font-size: clamp(15px, 1.8vw, 18px);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .large-text-badge {
+            margin-left: auto;
+            flex: none;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #174f49;
+            background: #fff7d6;
+            text-decoration: none;
+        }
+
+        .chat-box {
+            flex: 1;
+            min-height: 0;
+            padding: clamp(18px, 3vw, 30px);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 47px,
+                    rgba(23, 107, 99, 0.045) 48px
+                );
+        }
+
+        .message {
+            max-width: 82%;
+            padding: 16px 20px;
+            border-radius: 20px;
+            font-size: clamp(18px, 2vw, 21px);
+            line-height: 1.75;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            box-shadow: 0 5px 14px rgba(37, 53, 49, 0.08);
+        }
+
+        .user {
+            align-self: flex-end;
+            color: #fff;
+            background: var(--blue);
+            border-bottom-right-radius: 6px;
+        }
+
+        .ai {
+            align-self: flex-start;
+            color: var(--text);
+            background: #edf2f0;
+            border: 1px solid #dce5e2;
+            border-bottom-left-radius: 6px;
+        }
+
+        .control-panel {
+            flex: none;
+            background: var(--surface-soft);
+            border-top: 1px solid var(--line);
+        }
+
+        .test-controls {
+            min-height: 78px;
+            padding: 12px 22px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .test-progress {
+            flex: 1;
+            padding: 12px 18px;
+            color: var(--primary-dark);
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 14px;
+            background: #e2f0ec;
+        }
+
+        .voice-settings {
+            padding: 13px 22px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            color: var(--text);
+            border-top: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .setting-copy {
+            min-width: 160px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .setting-copy label {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .setting-copy small {
+            color: var(--text-soft);
+            font-size: 14px;
+        }
+
+        .voice-settings select {
+            flex: 1;
+            min-height: 54px;
+            padding: 8px 44px 8px 16px;
+            color: var(--text);
+            font-size: 18px;
+            font-weight: 600;
+            border: 2px solid #aebdb8;
+            border-radius: 14px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .input-area {
+            padding: 16px 22px 20px;
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) auto auto;
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        #user-input {
+            width: 100%;
+            min-height: 62px;
+            padding: 12px 20px;
+            color: var(--text);
+            font-size: 19px;
+            border: 2px solid #aebdb8;
+            border-radius: 18px;
+            outline: none;
+            background: #fff;
+        }
+
+        #user-input::placeholder {
+            color: #6f7b78;
+        }
+
+        button {
+            min-height: 58px;
+            padding: 10px 24px;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.25;
+            border: 0;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 5px 12px rgba(26, 70, 65, 0.14);
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible {
+            outline: 4px solid var(--focus);
+            outline-offset: 3px;
+        }
+
+        #start-test-btn {
+            min-width: 235px;
+            background: var(--primary);
+        }
+
+        #start-test-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        #record-btn {
+            min-width: 170px;
+            background: var(--blue);
+        }
+
+        #record-btn:hover {
+            background: var(--blue-dark);
+        }
+
+        #send-btn {
+            min-width: 112px;
+            background: var(--accent);
+        }
+
+        #send-btn:hover {
+            background: var(--accent-dark);
+        }
+
+        .exit-test {
+            background: #66716f;
+        }
+
+        .exit-test:hover {
+            background: #4d5755;
+        }
+
+        button:disabled {
+            color: #fff;
+            background: #929b99 !important;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        [hidden] { display: none !important; }
+
+        @media (max-width: 680px) {
+            body {
+                padding: 0;
+            }
+
+            .chat-container {
+                border: 0;
+                border-radius: 0;
+            }
+
+            .app-header {
+                gap: 12px;
+                padding: 13px 16px;
+            }
+
+            .app-mark {
+                width: 48px;
+                height: 48px;
+                flex-basis: 48px;
+                border-radius: 14px;
+                font-size: 25px;
+            }
+
+            .app-subtitle,
+            .large-text-badge {
+                display: none;
+            }
+
+            .chat-box {
+                padding: 16px;
+                gap: 16px;
+            }
+
+            .message {
+                max-width: 94%;
+                padding: 14px 16px;
+                font-size: 18px;
+            }
+
+            .test-controls {
+                padding: 10px 14px;
+            }
+
+            #start-test-btn {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .voice-settings {
+                padding: 11px 14px;
+                align-items: stretch;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .setting-copy {
+                min-width: 0;
+            }
+
+            .voice-settings select {
+                width: 100%;
+            }
+
+            .input-area {
+                padding: 12px 14px 16px;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            #user-input {
+                grid-column: 1 / -1;
+            }
+
+            #record-btn,
+            #send-btn {
+                width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="chat-container" aria-label="忆路明灯智慧陪伴">
+        <header class="app-header">
+            <div class="app-mark" aria-hidden="true">💡</div>
+            <div class="app-heading">
+                <h1 class="app-title">忆路明灯</h1>
+                <p class="app-subtitle">耐心倾听，温暖陪伴 · 支持语音交流与认知测试</p>
+            </div>
+            <a class="large-text-badge" href="{{ url_for('dashboard') }}">← 返回首页</a>
+        </header>
+
+        <div class="chat-box" id="chat-box" role="log" aria-live="polite">
+            <div class="message ai">您好！我是您的智慧陪伴助手。您可以和我聊天，也可以点击下方按钮开始认知测试。</div>
+        </div>
+
+        <section class="control-panel" aria-label="交流操作区">
+            <div class="test-controls">
+                <button type="button" id="start-test-btn" onclick="startTest()">🧠 开始认知测试</button>
+                <span id="test-progress" class="test-progress" hidden></span>
+                <button type="button" id="exit-test-btn" class="exit-test" onclick="exitTest()" hidden>退出测试</button>
+            </div>
+
+            <div class="voice-settings">
+                <div class="setting-copy">
+                    <label for="speech-mode">选择说话语言</label>
+                    <small>请选择您最熟悉的语言</small>
+                </div>
+                <select id="speech-mode">
+                    <option value="browser">普通话（浏览器）</option>
+                    <option value="cantonese">粤语（腾讯云）</option>
+                    <option value="chaoshan">潮汕话（腾讯云）</option>
+                </select>
+            </div>
+
+            <div class="input-area">
+                <label class="sr-only" for="user-input">输入您想说的话</label>
+                <input type="text" id="user-input" placeholder="请在这里输入内容……" onkeypress="if(event.keyCode==13) sendMessage()">
+                <button type="button" id="record-btn" onclick="toggleRecording()">🎤 点击说话</button>
+                <button type="button" onclick="sendMessage()" id="send-btn">发送消息</button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let isTesting = false;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+        function csrfHeaders(extraHeaders={}) {
+            return {
+                ...extraHeaders,
+                'X-CSRF-Token': csrfToken
+            };
+        }
+
+        function setTestMode(active, progress='') {
+            isTesting = active;
+            document.getElementById('start-test-btn').hidden = active;
+            document.getElementById('exit-test-btn').hidden = !active;
+
+            const progressElement = document.getElementById('test-progress');
+            progressElement.hidden = !active;
+            progressElement.innerText = active ? `测试进度：${progress}` : '';
+
+            document.getElementById('user-input').placeholder =
+                active ? '请输入本题答案...' : '输入你想说的话...';
+        }
+
+        async function startTest() {
+            const startButton = document.getElementById('start-test-btn');
+            startButton.disabled = true;
+
+            try {
+                const response = await fetch('/test/start', {
+                    method: 'POST',
+                    headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({
+                        input_language: document.getElementById('speech-mode').value
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || '测试启动失败');
+
+                setTestMode(true, data.progress);
+                appendMessage(data.reply, 'ai');
+                speakText(data.reply);
+            } catch (error) {
+                appendMessage(error.message || '测试启动失败，请稍后再试。', 'ai');
+            } finally {
+                startButton.disabled = false;
+            }
+        }
+
+        async function exitTest() {
+            try {
+                const response = await fetch('/test/reset', {
+                    method: 'POST',
+                    headers: csrfHeaders()
+                });
+                const data = await response.json();
+                setTestMode(false);
+                appendMessage(data.reply, 'ai');
+                speakText(data.reply);
+            } catch (error) {
+                appendMessage('暂时无法退出测试，请刷新页面。', 'ai');
+            }
+        }
+
+        async function restoreTestStatus() {
+            try {
+                const response = await fetch('/test/status');
+                const data = await response.json();
+                if (data.testing) {
+                    setTestMode(true, data.progress);
+                    appendMessage(data.reply, 'ai');
+                    speakText(data.reply);
+                }
+            } catch (error) {
+                console.warn('无法恢复测试状态:', error);
+            }
+        }
+
+        async function sendMessage() {
+            const inputField = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            const message = inputField.value.trim();
+
+            if (!message || sendBtn.disabled) return;
+
+            // 1. 显示用户消息
+            appendMessage(message, 'user');
+            inputField.value = '';
+            sendBtn.disabled = true; // 防止重复点击
+
+            const loadingId = appendMessage(
+                isTesting ? '正在记录回答...' : '正在思考...',
+                'ai',
+                true
+            );
+
+            try {
+                // 测试模式由本地规则判分，普通聊天才调用 DeepSeek。
+                const response = await fetch(
+                    isTesting ? '/test/answer' : '/chat',
+                    {
+                    method: 'POST',
+                    headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ message: message })
+                    }
+                );
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || '请求处理失败');
+                }
+
+                removeMessage(loadingId);
+                appendMessage(data.reply, 'ai');
+                speakText(data.reply);
+
+                if (isTesting) {
+                    if (data.completed) {
+                        setTestMode(false);
+                    } else {
+                        setTestMode(true, data.progress);
+                    }
+                }
+            } catch (error) {
+                removeMessage(loadingId);
+                appendMessage(error.message || '抱歉，连接出错了。', 'ai');
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        function appendMessage(text, sender, isLoading=false) {
+            const chatBox = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            div.classList.add('message', sender);
+            div.innerText = text;
+            if (isLoading) div.id = 'loading-msg';
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight; // 自动滚动到底部
+            return div.id;
+        }
+
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // 使用浏览器内置的语音合成功能朗读 AI 回复
+        function speakText(text) {
+            if (!text || !('speechSynthesis' in window)) {
+                return;
+            }
+
+            // 收到新回复时停止上一段朗读，避免声音重叠
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            const speechMode = document.getElementById('speech-mode').value;
+            const preferredLanguage = speechMode === 'cantonese' ? 'zh-HK' : 'zh-CN';
+            utterance.lang = preferredLanguage;
+            utterance.rate = 1;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+
+            // 粤语模式优先选择香港粤语语音；没有时退回其他中文语音。
+            const voices = window.speechSynthesis.getVoices();
+            const exactVoice = voices.find(
+                voice => voice.lang.toLowerCase() === preferredLanguage.toLowerCase()
+            );
+            const chineseVoice = exactVoice || voices.find(
+                voice => voice.lang.toLowerCase().startsWith('zh')
+            );
+            if (chineseVoice) {
+                utterance.voice = chineseVoice;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        }
+        let speechRecognition = null;
+        let isRecognizing = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isCloudRecording = false;
+        let cloudStopTimer = null;
+        let activeCloudMode = 'chaoshan';
+
+        const cloudSpeechModes = {
+            cantonese: {
+                label: '粤语',
+                filename: 'cantonese.webm'
+            },
+            chaoshan: {
+                label: '潮汕话',
+                filename: 'chaoshan.webm'
+            }
+        };
+
+        function resetRecordButton() {
+            const recordBtn = document.getElementById('record-btn');
+            isRecognizing = false;
+            isCloudRecording = false;
+            recordBtn.innerText = '🎤 点击说话';
+            recordBtn.style.backgroundColor = '';
+            document.getElementById('speech-mode').disabled = false;
+        }
+
+        async function toggleRecording() {
+            const speechMode = document.getElementById('speech-mode').value;
+            if (cloudSpeechModes[speechMode]) {
+                await toggleCloudRecording(speechMode);
+            } else {
+                toggleBrowserRecognition();
+            }
+        }
+
+        async function toggleCloudRecording(speechMode) {
+            const recordBtn = document.getElementById('record-btn');
+
+            if (isCloudRecording && mediaRecorder) {
+                clearTimeout(cloudStopTimer);
+                mediaRecorder.stop();
+                return;
+            }
+
+            if (
+                !navigator.mediaDevices ||
+                !navigator.mediaDevices.getUserMedia ||
+                !('MediaRecorder' in window)
+            ) {
+                appendMessage('当前浏览器无法录音，请使用最新版 Chrome 或 Edge。', 'ai');
+                return;
+            }
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+
+            try {
+                activeCloudMode = speechMode;
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const preferredType = ['audio/webm;codecs=opus', 'audio/webm']
+                    .find(type => MediaRecorder.isTypeSupported(type));
+
+                mediaRecorder = preferredType
+                    ? new MediaRecorder(stream, { mimeType: preferredType })
+                    : new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    clearTimeout(cloudStopTimer);
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    const audioBlob = new Blob(audioChunks, {
+                        type: mediaRecorder.mimeType || 'audio/webm'
+                    });
+                    resetRecordButton();
+                    await sendCloudAudio(audioBlob, activeCloudMode);
+                };
+
+                mediaRecorder.start();
+                isCloudRecording = true;
+                document.getElementById('speech-mode').disabled = true;
+                recordBtn.innerText =
+                    `🛑 正在录${cloudSpeechModes[speechMode].label}...点击停止`;
+                recordBtn.style.backgroundColor = '#dc3545';
+
+                // 老人忘记停止时，最多录制15秒，避免产生过大的文件。
+                cloudStopTimer = setTimeout(() => {
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 15000);
+            } catch (error) {
+                resetRecordButton();
+                appendMessage('无法使用麦克风，请检查浏览器和 Windows 权限。', 'ai');
+            }
+        }
+
+        async function sendCloudAudio(audioBlob, speechMode) {
+            const recordBtn = document.getElementById('record-btn');
+            const modeInfo = cloudSpeechModes[speechMode];
+            const loadingId = appendMessage(`正在识别${modeInfo.label}...`, 'ai', true);
+            recordBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('audio', audioBlob, modeInfo.filename);
+            formData.append('language', speechMode);
+
+            try {
+                const response = await fetch('/speech/recognize', {
+                    method: 'POST',
+                    headers: csrfHeaders(),
+                    body: formData
+                });
+                const data = await response.json();
+                removeMessage(loadingId);
+                if (!response.ok) {
+                    throw new Error(data.error || `${modeInfo.label}识别失败`);
+                }
+
+                document.getElementById('user-input').value = data.text;
+                await sendMessage();
+            } catch (error) {
+                removeMessage(loadingId);
+                appendMessage(
+                    error.message || `${modeInfo.label}识别失败，请再试一次。`,
+                    'ai'
+                );
+            } finally {
+                recordBtn.disabled = false;
+            }
+        }
+
+        function toggleBrowserRecognition() {
+            const recordBtn = document.getElementById('record-btn');
+
+            if (isRecognizing && speechRecognition) {
+                speechRecognition.stop();
+                return;
+            }
+
+            const Recognition =
+                window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!Recognition) {
+                alert('当前浏览器不支持语音识别，请使用最新版 Chrome 或 Edge。');
+                return;
+            }
+
+            // 防止上一段 AI 朗读被麦克风重新识别
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+
+            let resultReceived = false;
+            speechRecognition = new Recognition();
+            speechRecognition.lang = 'zh-CN';
+            speechRecognition.continuous = false;
+            speechRecognition.interimResults = false;
+            speechRecognition.maxAlternatives = 1;
+
+            speechRecognition.onstart = () => {
+                isRecognizing = true;
+                document.getElementById('speech-mode').disabled = true;
+                recordBtn.innerText = '🛑 正在聆听...点击停止';
+                recordBtn.style.backgroundColor = '#dc3545';
+            };
+
+            speechRecognition.onresult = event => {
+                const transcript = event.results[0][0].transcript.trim();
+                if (!transcript) return;
+
+                resultReceived = true;
+                document.getElementById('user-input').value = transcript;
+                sendMessage();
+            };
+
+            speechRecognition.onerror = event => {
+                if (event.error === 'aborted') return;
+
+                const errorMessages = {
+                    'not-allowed': '无法使用麦克风，请允许浏览器访问麦克风。',
+                    'audio-capture': '没有检测到可用的麦克风。',
+                    'no-speech': '没有听到清晰的语音，请再试一次。',
+                    'network': '浏览器语音识别服务暂时无法连接。'
+                };
+                appendMessage(
+                    errorMessages[event.error] || '语音识别失败，请再试一次。',
+                    'ai'
+                );
+            };
+
+            speechRecognition.onend = () => {
+                resetRecordButton();
+                if (!resultReceived) {
+                    document.getElementById('user-input').focus();
+                }
+            };
+
+            try {
+                speechRecognition.start();
+            } catch (error) {
+                resetRecordButton();
+                appendMessage('语音识别无法启动，请稍后再试。', 'ai');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', restoreTestStatus);
+    </script>
+</body>
+</html>

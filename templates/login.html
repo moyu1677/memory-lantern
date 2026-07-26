@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}登录 · 忆路明灯{% endblock %}
+{% block shell_class %}narrow-shell{% endblock %}
+
+{% block content %}
+<section class="auth-card" aria-labelledby="login-title">
+    <div class="auth-intro">
+        <div class="auth-icon" aria-hidden="true">👋</div>
+        <h1 id="login-title">欢迎回来</h1>
+        <p>请输入账号和密码，进入您的智慧陪伴空间。</p>
+    </div>
+
+    <form class="form-grid" method="post" autocomplete="on">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ next_url }}">
+
+        <div class="field">
+            <label for="username">账号</label>
+            <input
+                id="username"
+                name="username"
+                type="text"
+                maxlength="24"
+                autocomplete="username"
+                required
+                autofocus
+                placeholder="请输入您的账号"
+            >
+        </div>
+
+        <div class="field">
+            <label for="password">密码</label>
+            <input
+                id="password"
+                name="password"
+                type="password"
+                maxlength="128"
+                autocomplete="current-password"
+                required
+                placeholder="请输入您的密码"
+            >
+        </div>
+
+        <label class="check-row">
+            <input type="checkbox" name="remember">
+            <span>在这台设备上保持登录7天</span>
+        </label>
+
+        <button class="button-wide" type="submit">登录系统</button>
+    </form>
+
+    <p class="auth-footer">
+        还没有账号？
+        <a class="text-link" href="{{ url_for('register') }}">立即注册</a>
+    </p>
+</section>
+{% endblock %}

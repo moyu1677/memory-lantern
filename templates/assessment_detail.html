@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}测试详情 · 忆路明灯{% endblock %}
+
+{% block content %}
+<div class="back-row">
+    {% if current_user['role'] == 'admin' and assessment['user_id'] != current_user['id'] %}
+        <a class="text-link" href="{{ url_for('admin_user_history', user_id=assessment['user_id']) }}">← 返回用户历史</a>
+    {% elif current_user['account_type'] in ['family', 'community'] %}
+        <a class="text-link" href="{{ url_for('elder_history', elder_id=assessment['user_id']) }}">← 返回老人历史</a>
+    {% else %}
+        <a class="text-link" href="{{ url_for('history') }}">← 返回历史结果</a>
+    {% endif %}
+</div>
+
+<header class="page-heading">
+    <h1>测试结果详情</h1>
+    <p>{{ assessment['display_name'] }} · {{ assessment['completed_at'] | local_datetime }}</p>
+</header>
+
+<section class="panel auth-card">
+    <div class="detail-grid">
+        <div class="stat-card">
+            <div class="stat-label">总分</div>
+            <div class="stat-value">{{ assessment['score'] }}/{{ assessment['maximum_score'] }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">百分制表现</div>
+            <div class="stat-value">{{ assessment['percentage'] }}分</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">输入语言</div>
+            <div class="stat-value">{{ assessment['input_language'] | language_name }}</div>
+        </div>
+    </div>
+
+    <div class="domain-list">
+        {% for domain, score in domain_scores.items() %}
+            <div class="domain-row">
+                <strong>{{ domain }}</strong>
+                <span>{{ score }}/{{ domain_maximums.get(domain, "—") }}分</span>
+            </div>
+        {% endfor %}
+    </div>
+
+    <p class="notice">{{ assessment['result_level'] }}。本结果仅反映本次任务表现，不构成医学诊断。</p>
+    <a class="button button-wide" href="{{ url_for('assessment_report', assessment_id=assessment['id']) }}">
+        查看本次专属建议报告
+    </a>
+</section>
+{% endblock %}

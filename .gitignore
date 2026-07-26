@@ -1,0 +1,13 @@
+.env
+temp_record.wav
+temp_record.webm
+__pycache__/
+*.py[cod]
+.idea/
+.venv/
+语音秘钥.csv
+deepseek秘钥.txt
+*.pcm
+data/*.db
+data/*.db-shm
+data/*.db-wal

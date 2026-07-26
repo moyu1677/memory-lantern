@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}家属社区留言 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="page-heading">
+    <span class="role-badge">{{ current_user['account_type'] | account_type_name }}</span>
+    <h1>家属与社区留言中心</h1>
+    <p>只有共同绑定同一位老人的家属端和社区端可以互相留言。请勿在留言中填写身份证号、银行卡号等敏感信息。</p>
+</header>
+
+<div class="message-layout">
+    <section class="panel message-compose">
+        <h2>写一条留言</h2>
+        {% if contacts %}
+            <form class="form-grid" method="post">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div class="field">
+                    <label for="contact">发送给</label>
+                    <select id="contact" name="contact" required>
+                        {% for contact in contacts %}
+                            <option value="{{ contact['id'] }}:{{ contact['elder_id'] }}">
+                                {{ contact['display_name'] }}（{{ contact['account_type'] | account_type_name }}）
+                                · 关于{{ contact['elder_name'] }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="body">留言内容</label>
+                    <textarea id="body" name="body" maxlength="1000" rows="6"
+                        required placeholder="请输入要沟通的照护情况、提醒或建议……"></textarea>
+                    <span class="field-help">最多1000字。留言会保存在系统数据库中。</span>
+                </div>
+                <button class="button-wide" type="submit">发送留言</button>
+            </form>
+        {% else %}
+            <div class="empty-inline">
+                <p>暂时没有可以留言的联系人。</p>
+                <p>需要家属端和社区端都使用绑定码绑定同一位老人，联系人才能出现在这里。</p>
+                <a class="button button-wide" href="{{ url_for('dashboard') }}">返回绑定老人</a>
+            </div>
+        {% endif %}
+    </section>
+
+    <section class="panel message-list-panel">
+        <h2>往来留言</h2>
+        {% if messages %}
+            <div class="message-list">
+                {% for item in messages %}
+                    <article class="message-item {{ 'message-sent' if item['sender_id'] == current_user['id'] else 'message-received' }}">
+                        <div class="message-meta">
+                            <strong>
+                                {% if item['sender_id'] == current_user['id'] %}
+                                    我 → {{ item['recipient_name'] }}
+                                {% else %}
+                                    {{ item['sender_name'] }} → 我
+                                {% endif %}
+                            </strong>
+                            <span>关于{{ item['elder_name'] }} · {{ item['created_at'] | local_datetime }}</span>
+                        </div>
+                        <p>{{ item['body'] }}</p>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-inline"><p>还没有留言记录。</p></div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

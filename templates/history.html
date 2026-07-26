@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}历史测试结果 · 忆路明灯{% endblock %}
+
+{% block content %}
+{% if admin_view %}
+    <div class="back-row">
+        <a class="text-link" href="{{ url_for('admin_users') }}">← 返回用户管理</a>
+    </div>
+{% elif caregiver_view %}
+    <div class="back-row">
+        <a class="text-link" href="{{ url_for('dashboard') }}">← 返回绑定老人</a>
+    </div>
+{% endif %}
+
+<header class="page-heading">
+    <h1>{{ owner['display_name'] }}的历史结果</h1>
+    <p>每次测试都可以查看专属建议报告。这里只保存得分和能力维度，不保存原始语音或完整回答。</p>
+</header>
+
+{% if assessments %}
+    <div class="result-list">
+        {% for item in assessments %}
+            <article class="result-card">
+                <div class="score-circle">{{ item['percentage'] }}分</div>
+                <div class="result-main">
+                    <h2>{{ item['completed_at'] | local_datetime }}</h2>
+                    <div class="result-meta">
+                        总分：{{ item['score'] }}/{{ item['maximum_score'] }} ·
+                        输入语言：{{ item['input_language'] | language_name }}
+                    </div>
+                </div>
+                <div class="result-actions">
+                    <a class="button button-small button-muted" href="{{ url_for('assessment_detail', assessment_id=item['id']) }}">得分详情</a>
+                    <a class="button button-small" href="{{ url_for('assessment_report', assessment_id=item['id']) }}">专属报告</a>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <section class="panel empty-state">
+        <div class="feature-icon" aria-hidden="true">📋</div>
+        <h2>还没有测试记录</h2>
+        <p>完成一次认知测试后，结果会自动保存在这里。</p>
+        {% if not admin_view and not caregiver_view %}
+            <a class="button" href="{{ url_for('assistant_page') }}">开始第一次测试</a>
+        {% endif %}
+    </section>
+{% endif %}
+{% endblock %}

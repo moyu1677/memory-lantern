@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}用户管理 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="page-heading">
+    <h1>用户管理</h1>
+    <p>可以查看用户和测试次数、停用异常账号或协助重置密码。为避免误删，系统不提供直接删除用户。</p>
+</header>
+
+<section class="panel table-panel">
+    <table class="responsive-table">
+        <thead>
+            <tr>
+                <th>用户</th>
+                <th>身份</th>
+                <th>状态</th>
+                <th>测试记录</th>
+                <th>注册时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+                <tr>
+                    <td data-label="用户">
+                        <strong>{{ user['display_name'] }}</strong><br>
+                        <span class="field-help">账号：{{ user['username'] }}</span>
+                    </td>
+                    <td data-label="身份">{{ user['account_type'] | account_type_name }}</td>
+                    <td data-label="状态">
+                        <span class="status {{ 'status-active' if user['is_active'] else 'status-inactive' }}">
+                            {{ "正常" if user['is_active'] else "已停用" }}
+                        </span>
+                    </td>
+                    <td data-label="测试记录">{{ user['assessment_count'] }} 次</td>
+                    <td data-label="注册时间">{{ user['created_at'] | local_datetime }}</td>
+                    <td data-label="操作">
+                        <div class="table-actions">
+                            <a class="button button-small" href="{{ url_for('admin_user_history', user_id=user['id']) }}">历史</a>
+                            <a class="button button-small button-muted" href="{{ url_for('admin_reset_password', user_id=user['id']) }}">重置密码</a>
+                            {% if user['id'] != current_user['id'] %}
+                                <form action="{{ url_for('admin_toggle_user', user_id=user['id']) }}" method="post">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button class="button-small {{ 'button-danger' if user['is_active'] else '' }}" type="submit">
+                                        {{ "停用" if user['is_active'] else "启用" }}
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

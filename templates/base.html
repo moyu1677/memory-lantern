@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}忆路明灯{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body class="role-{{ current_user['account_type'] if current_user else 'public' }}">
+    <header class="site-header">
+        <div class="site-header-inner">
+            <a class="brand" href="{{ url_for('dashboard') if current_user else url_for('login') }}">
+                <span class="brand-mark" aria-hidden="true">💡</span>
+                <span>忆路明灯</span>
+            </a>
+
+            {% if current_user %}
+                <nav class="site-nav" aria-label="主要导航">
+                    <a href="{{ url_for('dashboard') }}">首页</a>
+                    {% if current_user['account_type'] in ['elder', 'admin'] %}
+                        <a href="{{ url_for('assistant_page') }}">智慧陪伴</a>
+                        <a href="{{ url_for('history') }}">历史结果</a>
+                    {% endif %}
+                    {% if current_user['account_type'] in ['family', 'community'] %}
+                        <a href="{{ url_for('message_center') }}">
+                            留言中心{% if unread_message_count %}（{{ unread_message_count }}）{% endif %}
+                        </a>
+                    {% endif %}
+                    {% if current_user['role'] == 'admin' %}
+                        <a href="{{ url_for('admin_users') }}">用户管理</a>
+                    {% endif %}
+                    <form class="nav-form" action="{{ url_for('logout') }}" method="post">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button class="nav-logout" type="submit">退出登录</button>
+                    </form>
+                </nav>
+            {% endif %}
+        </div>
+    </header>
+
+    <main class="page-shell {% block shell_class %}{% endblock %}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-stack" role="status">
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="medical-disclaimer">
+        <strong>重要声明：</strong>
+        忆路明灯不是医疗器械或医疗用品，测试结果和训练建议仅供健康管理与项目体验参考，
+        不能用于疾病诊断、治疗或替代医生意见。如出现突发意识混乱、言语不清或肢体无力，请及时就医。
+    </footer>
+</body>
+</html>
