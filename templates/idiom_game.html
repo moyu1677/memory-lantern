@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% block title %}成语接龙小游戏 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="game-heading">
+    <div>
+        <span class="role-badge role-badge-light">老人端小游戏</span>
+        <h1>🧩 成语接龙</h1>
+        <p>电脑先说一个成语，您用它的最后一个字接下去。答对就进入下一轮，不扣分，慢慢想。</p>
+        <span class="game-library-count">本地成语库：{{ idiom_count }} 条</span>
+    </div>
+    <div class="game-round-card">
+        <span>已经接对</span>
+        <strong id="round-count">0</strong>
+        <span>轮</span>
+    </div>
+</header>
+
+<div class="game-layout">
+    <section class="panel game-board">
+        <div class="game-status" id="game-status" role="status">
+            点击下方“开始游戏”，电脑就会先出一个成语。
+        </div>
+
+        <div class="current-turn" id="current-turn" hidden>
+            <div class="computer-card">
+                <span class="speaker-label">电脑说</span>
+                <strong id="computer-idiom">准备开始</strong>
+                <button class="speak-idiom-button" id="read-idiom" type="button">🔊 读给我听</button>
+            </div>
+            <div class="chain-arrow" aria-hidden="true">最后一个字</div>
+            <div class="required-character" id="required-character">—</div>
+            <p class="required-help">
+                请说出或输入一个以“<strong id="required-inline">—</strong>”开头的成语
+            </p>
+        </div>
+
+        <div class="game-history" id="game-history" aria-live="polite"></div>
+
+        <form class="game-answer-form" id="game-form">
+            <label for="idiom-input">我的成语</label>
+            <input id="idiom-input" maxlength="20" disabled
+                placeholder="请在这里输入四字成语……" autocomplete="off">
+
+            <div class="game-language-row">
+                <label for="game-language">语音输入</label>
+                <select id="game-language">
+                    <option value="browser">普通话（浏览器）</option>
+                    <option value="cantonese">粤语（腾讯云）</option>
+                    <option value="chaoshan">潮汕话（腾讯云）</option>
+                </select>
+            </div>
+
+            <div class="game-action-grid">
+                <button class="button-blue" id="voice-button" type="button" disabled>
+                    🎤 点击说成语
+                </button>
+                <button id="submit-idiom" type="submit" disabled>
+                    提交答案
+                </button>
+            </div>
+            <p class="voice-status" id="voice-status">
+                语音识别后文字会先放入输入框，请确认正确后再提交。
+            </p>
+        </form>
+
+        <div class="hint-area" id="hint-area" hidden>
+            <strong>可以选择下面的提示：</strong>
+            <div class="hint-buttons" id="hint-buttons"></div>
+        </div>
+
+        <div class="game-bottom-actions">
+            <button id="start-game" type="button">开始游戏</button>
+            <button class="button-muted" id="show-hints" type="button" disabled>💡 给我提示</button>
+            <button class="button-muted" id="restart-game" type="button" hidden>重新开始</button>
+        </div>
+    </section>
+
+    <aside class="panel game-guide">
+        <div class="feature-icon" aria-hidden="true">🌟</div>
+        <h2>怎么玩？</h2>
+        <p class="game-data-note">当前已从本地 SQLite 成语数据库载入 {{ idiom_count }} 条四字成语。</p>
+        <ol>
+            <li>先听电脑说一个成语。</li>
+            <li>看清楚需要接的第一个字。</li>
+            <li>可以打字，也可以点击麦克风说出来。</li>
+            <li>语音变成文字后，先确认文字正确，再点击提交。</li>
+        </ol>
+        <p class="notice">想不起来没有关系，点击“给我提示”就能继续。游戏只用于日常娱乐与语言练习，不属于认知测试。</p>
+    </aside>
+</div>
+
+<script>
+    const csrfToken = {{ csrf_token() | tojson }};
+    const startButton = document.getElementById("start-game");
+    const restartButton = document.getElementById("restart-game");
+    const hintButton = document.getElementById("show-hints");
+    const voiceButton = document.getElementById("voice-button");
+    const submitButton = document.getElementById("submit-idiom");
+    const input = document.getElementById("idiom-input");
+    const form = document.getElementById("game-form");
+    const statusBox = document.getElementById("game-status");
+    const currentTurn = document.getElementById("current-turn");
+    const historyBox = document.getElementById("game-history");
+    const hintArea = document.getElementById("hint-area");
+    const hintButtons = document.getElementById("hint-buttons");
+    const languageSelect = document.getElementById("game-language");
+    const voiceStatus = document.getElementById("voice-status");
+    let currentHints = [];
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let microphoneStream = null;
+    let stopTimer = null;
+
+    async function postJson(url, payload = {}) {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrfToken
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || "操作没有成功，请稍后重试。");
+        }
+        return data;
+    }
+
+    function setActive(active) {
+        input.disabled = !active;
+        voiceButton.disabled = !active;
+        submitButton.disabled = !active;
+        hintButton.disabled = !active;
+        startButton.hidden = active;
+        restartButton.hidden = !active;
+        if (active) input.focus();
+    }
+
+    function renderTurn(data, resetHistory = false) {
+        currentTurn.hidden = false;
+        document.getElementById("computer-idiom").textContent = data.computer_idiom;
+        document.getElementById("required-character").textContent = data.required_character;
+        document.getElementById("required-inline").textContent = data.required_character;
+        document.getElementById("round-count").textContent = data.rounds || 0;
+        currentHints = data.hints || [];
+        hintArea.hidden = true;
+        if (resetHistory) {
+            historyBox.replaceChildren();
+            appendHistory("computer", data.computer_idiom);
+        }
+    }
+
+    function appendHistory(speaker, idiom) {
+        const row = document.createElement("div");
+        row.className = `game-history-item game-history-${speaker}`;
+        const label = document.createElement("span");
+        label.textContent = speaker === "computer" ? "电脑" : "您";
+        const word = document.createElement("strong");
+        word.textContent = idiom;
+        row.append(label, word);
+        historyBox.append(row);
+        historyBox.scrollTop = historyBox.scrollHeight;
+    }
+
+    async function startGame() {
+        startButton.disabled = true;
+        restartButton.disabled = true;
+        try {
+            const data = await postJson("{{ url_for('start_idiom_game') }}");
+            renderTurn(data, true);
+            setActive(true);
+            statusBox.textContent = `电脑先说“${data.computer_idiom}”，轮到您了。`;
+            speakIdiom(data.computer_idiom);
+        } catch (error) {
+            statusBox.textContent = error.message;
+        } finally {
+            startButton.disabled = false;
+            restartButton.disabled = false;
+        }
+    }
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const idiom = input.value.trim();
+        if (!idiom) {
+            statusBox.textContent = "请先输入或说出一个成语。";
+            input.focus();
+            return;
+        }
+        submitButton.disabled = true;
+        try {
+            const data = await postJson(
+                "{{ url_for('submit_idiom') }}",
+                {idiom}
+            );
+            appendHistory("user", data.user_idiom);
+            input.value = "";
+            if (data.completed) {
+                document.getElementById("round-count").textContent = data.rounds;
+                currentTurn.hidden = true;
+                statusBox.textContent = `${data.message} 本轮共接对${data.rounds}次。`;
+                setActive(false);
+                restartButton.hidden = false;
+                startButton.hidden = true;
+                return;
+            }
+            appendHistory("computer", data.computer_idiom);
+            renderTurn(data);
+            statusBox.textContent = data.message;
+            speakIdiom(data.computer_idiom);
+            input.focus();
+        } catch (error) {
+            statusBox.textContent = error.message;
+            input.focus();
+        } finally {
+            if (!input.disabled) submitButton.disabled = false;
+        }
+    });
+
+    hintButton.addEventListener("click", () => {
+        hintButtons.replaceChildren();
+        currentHints.forEach((idiom) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "hint-choice";
+            button.textContent = idiom;
+            button.addEventListener("click", () => {
+                input.value = idiom;
+                input.focus();
+                statusBox.textContent = "提示已经放入输入框，确认后点击提交答案。";
+            });
+            hintButtons.append(button);
+        });
+        hintArea.hidden = false;
+        if (!currentHints.length) {
+            hintButtons.textContent = "这一轮暂时没有提示，可以重新开始一局。";
+        }
+    });
+
+    startButton.addEventListener("click", startGame);
+    restartButton.addEventListener("click", startGame);
+
+    function speakIdiom(idiom) {
+        if (!("speechSynthesis" in window)) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(idiom);
+        utterance.lang = languageSelect.value === "cantonese" ? "zh-HK" : "zh-CN";
+        utterance.rate = 0.78;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    document.getElementById("read-idiom").addEventListener("click", () => {
+        speakIdiom(document.getElementById("computer-idiom").textContent);
+    });
+
+    voiceButton.addEventListener("click", async () => {
+        if (languageSelect.value === "browser") {
+            startBrowserRecognition();
+        } else if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+        } else {
+            await startTencentRecording();
+        }
+    });
+
+    function startBrowserRecognition() {
+        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Recognition) {
+            voiceStatus.textContent = "当前浏览器不支持普通话语音识别，请使用最新版 Edge 或 Chrome。";
+            return;
+        }
+        const recognition = new Recognition();
+        recognition.lang = "zh-CN";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        voiceButton.disabled = true;
+        voiceButton.textContent = "正在听，请说成语……";
+        voiceStatus.textContent = "请清楚地说出四个字的成语。";
+        recognition.onresult = (event) => {
+            input.value = event.results[0][0].transcript.replace(/[，。！？、\s]/g, "");
+            voiceStatus.textContent = "识别完成，请先核对文字，再点击提交答案。";
+            input.focus();
+        };
+        recognition.onerror = () => {
+            voiceStatus.textContent = "没有听清楚，请靠近麦克风再试一次。";
+        };
+        recognition.onend = () => {
+            voiceButton.disabled = false;
+            voiceButton.textContent = "🎤 点击说成语";
+        };
+        recognition.start();
+    }
+
+    async function startTencentRecording() {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+            voiceStatus.textContent = "当前浏览器不能录音，请使用最新版 Edge 或 Chrome。";
+            return;
+        }
+        try {
+            microphoneStream = await navigator.mediaDevices.getUserMedia({audio: true});
+            audioChunks = [];
+            const preferred = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+                ? "audio/webm;codecs=opus"
+                : "audio/webm";
+            mediaRecorder = new MediaRecorder(microphoneStream, {mimeType: preferred});
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size) audioChunks.push(event.data);
+            };
+            mediaRecorder.onstop = sendTencentAudio;
+            mediaRecorder.start();
+            voiceButton.textContent = "⏹️ 说完请点这里";
+            voiceButton.classList.add("recording");
+            voiceStatus.textContent = "正在录音，请清楚地说出四个字的成语，最长10秒。";
+            stopTimer = window.setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+            }, 10000);
+        } catch (error) {
+            voiceStatus.textContent = "无法使用麦克风，请检查 Edge 和 Windows 的麦克风权限。";
+        }
+    }
+
+    async function sendTencentAudio() {
+        window.clearTimeout(stopTimer);
+        voiceButton.disabled = true;
+        voiceButton.classList.remove("recording");
+        voiceButton.textContent = "正在识别……";
+        voiceStatus.textContent = "录音已完成，正在识别，请稍候。";
+        if (microphoneStream) {
+            microphoneStream.getTracks().forEach((track) => track.stop());
+        }
+        try {
+            const blob = new Blob(audioChunks, {type: "audio/webm"});
+            const data = new FormData();
+            data.append("audio", blob, "idiom.webm");
+            data.append("language", languageSelect.value);
+            const response = await fetch("{{ url_for('recognize_speech') }}", {
+                method: "POST",
+                headers: {"X-CSRF-Token": csrfToken},
+                body: data
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.error || "语音识别失败。");
+            input.value = result.text.replace(/[，。！？、\s]/g, "");
+            voiceStatus.textContent = "识别完成，请先核对文字，再点击提交答案。";
+            input.focus();
+        } catch (error) {
+            voiceStatus.textContent = error.message;
+        } finally {
+            voiceButton.disabled = false;
+            voiceButton.textContent = "🎤 点击说成语";
+            mediaRecorder = null;
+            microphoneStream = null;
+        }
+    }
+</script>
+{% endblock %}

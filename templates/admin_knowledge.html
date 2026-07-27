@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}知识文章管理 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="page-heading heading-with-action">
+    <div>
+        <h1>知识文章管理</h1>
+        <p>审核社区投稿、维护来源，并控制文章是否公开显示。</p>
+    </div>
+    <a class="button" href="{{ url_for('admin_new_knowledge') }}">新建文章</a>
+</header>
+
+<nav class="status-filter" aria-label="文章状态筛选">
+    {% for value, label in [('', '全部'), ('pending', '待审核'), ('published', '已发布'), ('draft', '草稿'), ('rejected', '已退回'), ('disabled', '已停用')] %}
+        <a class="{% if selected_status == value %}active{% endif %}"
+            href="{{ url_for('admin_knowledge', status=value) }}">{{ label }}</a>
+    {% endfor %}
+</nav>
+
+<section class="panel table-panel">
+    <table class="responsive-table">
+        <thead>
+            <tr>
+                <th>文章</th>
+                <th>分类与对象</th>
+                <th>作者</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for article in articles %}
+                <tr>
+                    <td data-label="文章">
+                        <strong>{{ article['title'] }}</strong><br>
+                        <span class="field-help">{{ article['summary'] }}</span>
+                    </td>
+                    <td data-label="分类与对象">
+                        {{ article['category'] }}<br>
+                        {{ article['audience'] | knowledge_audience_name }}
+                    </td>
+                    <td data-label="作者">{{ article['author_name'] or ('内置内容' if article['is_seed'] else '未知') }}</td>
+                    <td data-label="状态">
+                        <span class="status status-{{ article['status'] }}">{{ article['status'] | knowledge_status_name }}</span>
+                    </td>
+                    <td data-label="操作">
+                        <div class="table-actions">
+                            {% if article['status'] == 'pending' %}
+                                <a class="button button-small button-orange"
+                                    href="{{ url_for('admin_review_knowledge', article_id=article['id']) }}">审核</a>
+                            {% endif %}
+                            <a class="button button-small button-muted"
+                                href="{{ url_for('admin_edit_knowledge', article_id=article['id']) }}">编辑</a>
+                            {% if article['status'] == 'published' %}
+                                <a class="button button-small"
+                                    href="{{ url_for('knowledge_detail', article_id=article['id']) }}">查看</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5">当前筛选条件下没有文章。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

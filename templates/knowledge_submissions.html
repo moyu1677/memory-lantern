@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}我的知识投稿 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="page-heading heading-with-action">
+    <div>
+        <h1>我的知识投稿</h1>
+        <p>社区经验需有明确来源并经过管理员审核，发布后才会进入知识中心。</p>
+    </div>
+    <a class="button button-orange" href="{{ url_for('new_knowledge_submission') }}">新建草稿</a>
+</header>
+
+{% if articles %}
+    <div class="submission-list">
+        {% for article in articles %}
+            <article class="panel submission-card">
+                <div>
+                    <span class="status status-{{ article['status'] }}">{{ article['status'] | knowledge_status_name }}</span>
+                    <h2>{{ article['title'] }}</h2>
+                    <p>{{ article['summary'] }}</p>
+                    {% if article['review_notes'] %}
+                        <div class="review-note"><strong>审核意见：</strong>{{ article['review_notes'] }}</div>
+                    {% endif %}
+                </div>
+                <div class="submission-actions">
+                    {% if article['status'] in ['draft', 'rejected'] %}
+                        <a class="button button-muted"
+                            href="{{ url_for('edit_knowledge_submission', article_id=article['id']) }}">继续编辑</a>
+                        <form action="{{ url_for('send_knowledge_submission', article_id=article['id']) }}" method="post"
+                            onsubmit="return confirm('提交后将暂时不能编辑，确认提交管理员审核吗？');">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button class="button button-orange" type="submit">提交审核</button>
+                        </form>
+                    {% elif article['status'] == 'published' %}
+                        <a class="button" href="{{ url_for('knowledge_detail', article_id=article['id']) }}">查看已发布文章</a>
+                    {% else %}
+                        <span class="field-help">正在等待管理员处理</span>
+                    {% endif %}
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <section class="panel empty-state">
+        <div class="feature-icon" aria-hidden="true">📝</div>
+        <h2>还没有投稿</h2>
+        <p>可以先把社区活动、沟通方法或安全照护经验保存成草稿。</p>
+        <a class="button button-orange" href="{{ url_for('new_knowledge_submission') }}">撰写第一篇草稿</a>
+    </section>
+{% endif %}
+{% endblock %}

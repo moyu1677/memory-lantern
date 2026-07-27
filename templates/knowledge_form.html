@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} · 忆路明灯{% endblock %}
+
+{% block content %}
+<div class="back-row">
+    <a class="text-link" href="{{ url_for('admin_knowledge') if admin_mode else url_for('knowledge_submissions') }}">← 返回文章列表</a>
+</div>
+
+<header class="page-heading">
+    <h1>{{ form_title }}</h1>
+    <p>
+        {% if admin_mode %}
+            发布前请确认内容准确、来源可靠，并避免给出个体诊断或用药指示。
+        {% else %}
+            先保存为草稿，再从“我的投稿”提交审核；管理员发布前不会对其他用户显示。
+        {% endif %}
+    </p>
+</header>
+
+<form class="panel knowledge-editor" action="{{ form_action }}" method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+    <label for="title">文章标题</label>
+    <input id="title" name="title" maxlength="100" required
+        value="{{ article['title'] if article else '' }}">
+
+    <label for="summary">一句话摘要</label>
+    <textarea id="summary" name="summary" rows="3" maxlength="240" required>{{ article['summary'] if article else '' }}</textarea>
+
+    <label for="content">正文内容</label>
+    <textarea id="content" name="content" rows="14" maxlength="8000" required
+        placeholder="请使用短段落和容易理解的表达。">{{ article['content'] if article else '' }}</textarea>
+
+    <div class="knowledge-form-grid">
+        <div>
+            <label for="category">分类</label>
+            <input id="category" name="category" maxlength="30" required
+                placeholder="例如：沟通陪伴" value="{{ article['category'] if article else '' }}">
+        </div>
+        <div>
+            <label for="audience">适用对象</label>
+            {% set audience = article['audience'] if article and article['audience'] else 'all' %}
+            <select id="audience" name="audience">
+                <option value="all" {% if audience == 'all' %}selected{% endif %}>所有用户</option>
+                <option value="elder" {% if audience == 'elder' %}selected{% endif %}>老人端</option>
+                <option value="family" {% if audience == 'family' %}selected{% endif %}>家属端</option>
+                <option value="community" {% if audience == 'community' %}selected{% endif %}>社区端</option>
+            </select>
+        </div>
+    </div>
+
+    <label for="keywords">搜索关键词</label>
+    <input id="keywords" name="keywords" maxlength="200"
+        placeholder="例如：睡眠 作息 失眠" value="{{ article['keywords'] if article else '' }}">
+
+    <label for="domains">关联能力维度</label>
+    <input id="domains" name="domains" maxlength="200"
+        placeholder="例如：即时记忆,延迟记忆,注意力" value="{{ article['domains'] if article else '' }}">
+    <p class="field-help">用于在专属报告中推荐相关文章。多个维度请用逗号分隔。</p>
+
+    <div class="knowledge-form-grid">
+        <div>
+            <label for="source_name">来源名称</label>
+            <input id="source_name" name="source_name" maxlength="160"
+                placeholder="机构或资料名称" value="{{ article['source_name'] if article else '' }}">
+        </div>
+        <div>
+            <label for="source_url">来源链接</label>
+            <input id="source_url" name="source_url" type="url" maxlength="500"
+                placeholder="https://..." value="{{ article['source_url'] if article else '' }}">
+        </div>
+    </div>
+
+    {% if admin_mode %}
+        {% set current_status = article['status'] if article and article['status'] else 'draft' %}
+        <label for="status">保存状态</label>
+        <select id="status" name="status">
+            <option value="draft" {% if current_status == 'draft' %}selected{% endif %}>草稿</option>
+            <option value="published" {% if current_status == 'published' %}selected{% endif %}>直接发布</option>
+            {% if article %}
+                <option value="disabled" {% if current_status == 'disabled' %}selected{% endif %}>停用</option>
+            {% endif %}
+        </select>
+    {% endif %}
+
+    <button class="button button-wide" type="submit">保存文章</button>
+</form>
+{% endblock %}

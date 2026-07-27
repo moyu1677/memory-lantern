@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}审核知识投稿 · 忆路明灯{% endblock %}
+
+{% block content %}
+<div class="back-row">
+    <a class="text-link" href="{{ url_for('admin_knowledge') }}">← 返回知识文章管理</a>
+</div>
+
+<header class="page-heading">
+    <h1>审核社区投稿</h1>
+    <p>请检查健康表述、适用对象、来源链接和是否包含个人敏感信息。</p>
+</header>
+
+<article class="knowledge-article review-preview">
+    <div class="knowledge-card-meta">
+        <span>{{ article['category'] }}</span>
+        <span>{{ article['audience'] | knowledge_audience_name }}</span>
+        <span>{{ article['status'] | knowledge_status_name }}</span>
+    </div>
+    <h2>{{ article['title'] }}</h2>
+    <p class="knowledge-summary">{{ article['summary'] }}</p>
+    <div class="knowledge-body">{{ article['content'] }}</div>
+    <section class="article-source">
+        <h3>投稿来源</h3>
+        <p>{{ article['source_name'] or '未填写来源名称' }}</p>
+        {% if article['source_url'] %}
+            <a href="{{ article['source_url'] }}" target="_blank" rel="noopener noreferrer">打开来源链接核验</a>
+        {% endif %}
+    </section>
+</article>
+
+{% if article['status'] == 'pending' %}
+    <form class="panel review-form" method="post"
+        action="{{ url_for('admin_review_knowledge', article_id=article['id']) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <label for="review_notes">审核意见</label>
+        <textarea id="review_notes" name="review_notes" rows="5" maxlength="1000"
+            placeholder="退回时请说明需要修改的内容；通过时也可记录核验情况。"></textarea>
+        <div class="review-actions">
+            <button class="button button-orange" name="decision" value="rejected" type="submit">退回修改</button>
+            <button class="button" name="decision" value="published" type="submit">通过并发布</button>
+        </div>
+    </form>
+{% else %}
+    <section class="panel">
+        <p>这篇文章当前状态为“{{ article['status'] | knowledge_status_name }}”，不需要再次审核。</p>
+    </section>
+{% endif %}
+{% endblock %}

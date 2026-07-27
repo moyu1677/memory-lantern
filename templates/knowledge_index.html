@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}健康知识中心 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="knowledge-hero">
+    <div>
+        <span class="report-eyebrow">TRUSTED HEALTH EDUCATION</span>
+        <h1>健康知识中心</h1>
+        <p>
+            {% if current_user['account_type'] == 'elder' %}
+                用大字阅读记忆练习、生活安全和健康生活小知识。
+            {% elif current_user['account_type'] == 'family' %}
+                查找沟通陪伴、日常照护和家属支持建议。
+            {% elif current_user['account_type'] == 'community' %}
+                查找社区服务建议，也可以提交本地经验供管理员审核。
+            {% else %}
+                查看已发布文章，并管理社区投稿和知识内容。
+            {% endif %}
+        </p>
+    </div>
+    <div class="knowledge-hero-actions">
+        {% if current_user['account_type'] == 'community' %}
+            <a class="button button-orange" href="{{ url_for('new_knowledge_submission') }}">撰写社区经验</a>
+            <a class="button button-muted" href="{{ url_for('knowledge_submissions') }}">我的投稿</a>
+        {% endif %}
+        {% if current_user['role'] == 'admin' %}
+            <a class="button" href="{{ url_for('admin_knowledge') }}">管理知识文章</a>
+        {% endif %}
+    </div>
+</header>
+
+<section class="panel knowledge-search-panel">
+    <form class="knowledge-search-form" method="get" action="{{ url_for('knowledge_center') }}">
+        <label for="knowledge-q">搜索文章</label>
+        <input id="knowledge-q" name="q" value="{{ query }}" maxlength="80"
+            placeholder="例如：记忆练习、睡眠、跌倒">
+        <label for="knowledge-category">内容分类</label>
+        <select id="knowledge-category" name="category">
+            <option value="">全部分类</option>
+            {% for category in categories %}
+                <option value="{{ category }}" {% if category == selected_category %}selected{% endif %}>
+                    {{ category }}
+                </option>
+            {% endfor %}
+        </select>
+        <label class="favorite-check">
+            <input type="checkbox" name="favorites" value="1" {% if favorites_only %}checked{% endif %}>
+            只看我的收藏
+        </label>
+        <button type="submit">查找内容</button>
+    </form>
+</section>
+
+<section class="knowledge-notice" role="note">
+    <span aria-hidden="true">🛡️</span>
+    <p><strong>阅读提示：</strong>内容仅供健康教育参考，不用于诊断或治疗。每篇文章均显示来源；社区投稿需经管理员审核后才会发布。</p>
+</section>
+
+{% if articles %}
+    <div class="knowledge-grid">
+        {% for article in articles %}
+            <article class="knowledge-card">
+                <div class="knowledge-card-meta">
+                    <span>{{ article['category'] }}</span>
+                    <span>{{ article['audience'] | knowledge_audience_name }}</span>
+                </div>
+                <h2>{{ article['title'] }}</h2>
+                <p>{{ article['summary'] }}</p>
+                <div class="knowledge-card-footer">
+                    <a class="button" href="{{ url_for('knowledge_detail', article_id=article['id']) }}">阅读全文</a>
+                    <form action="{{ url_for('knowledge_favorite', article_id=article['id']) }}" method="post">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="favorite" value="{{ 0 if article['is_favorite'] else 1 }}">
+                        <input type="hidden" name="next" value="{{ request.full_path }}">
+                        <button class="button button-muted" type="submit">
+                            {{ '取消收藏' if article['is_favorite'] else '☆ 收藏' }}
+                        </button>
+                    </form>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <section class="panel empty-state">
+        <div class="feature-icon" aria-hidden="true">🔎</div>
+        <h2>暂时没有找到相关文章</h2>
+        <p>可以换一个简短关键词，或取消分类和收藏筛选后再试。</p>
+        <a class="button" href="{{ url_for('knowledge_center') }}">查看全部文章</a>
+    </section>
+{% endif %}
+{% endblock %}
