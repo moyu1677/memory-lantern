@@ -33,11 +33,13 @@ import database
 from database import (
     bind_elder,
     can_message_contact,
+    count_idioms,
     count_unread_messages,
     count_assessments,
     create_message,
     create_user,
     get_assessment,
+    get_knowledge_article,
     get_user_by_id,
     get_user_by_username,
     is_elder_bound_to,
@@ -46,16 +48,28 @@ from database import (
     list_elder_caregivers,
     list_message_contacts,
     list_messages,
+    list_admin_knowledge_articles,
+    list_knowledge_articles,
+    list_knowledge_categories,
+    list_recommended_knowledge,
+    list_user_knowledge_submissions,
     list_users_with_stats,
     mark_messages_read,
     save_assessment,
+    set_knowledge_favorite,
+    create_knowledge_article,
+    review_knowledge_article,
+    submit_knowledge_article,
     unbind_elder,
+    update_knowledge_article,
     update_last_login,
     update_user_active,
     update_user_password,
 )
 from questions import (
-    QUESTIONS,
+    QUESTION_BANK_VERSION,
+    TEST_QUESTION_COUNT,
+    build_test_questions,
     domain_max_points,
     result_level,
     score_answer,
@@ -63,6 +77,7 @@ from questions import (
 )
 from tencent_asr import TencentASRError, recognize_pcm
 from reports import build_assessment_report
+from idiom_game import hints_for, new_game_state, play_turn
 
 app = Flask(__name__)
 load_dotenv()
@@ -107,6 +122,7 @@ database.init_app(app)
 
 # 原型阶段将测试进度保存在服务进程内，避免把老人回答写入浏览器 Cookie。
 TEST_SESSIONS = {}
+IDIOM_GAME_SESSIONS = {}
 
 # 初始化 DeepSeek 客户端。DeepSeek 兼容 OpenAI Chat Completions 接口。
 deepseek_client = OpenAI(
@@ -152,6 +168,7 @@ def is_api_request():
         request.path == "/chat"
         or request.path.startswith("/test/")
         or request.path.startswith("/speech/")
+        or request.path.startswith("/games/idiom/")
     )
 
 
@@ -230,6 +247,30 @@ def caregiver_required(view):
     return wrapped_view
 
 
+def community_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if g.current_user["account_type"] != "community":
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+def elder_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if g.current_user["account_type"] not in {"elder", "admin"}:
+            if is_api_request():
+                return jsonify({"error": "这个小游戏仅向老人端开放。"}), 403
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
 def can_view_elder(elder_id):
     if g.current_user["role"] == "admin":
         return True
@@ -273,6 +314,67 @@ def account_type_name(value):
     }.get(value, value or "未设置")
 
 
+@app.template_filter("knowledge_audience_name")
+def knowledge_audience_name(value):
+    return {
+        "all": "所有用户",
+        "elder": "老人端",
+        "family": "家属端",
+        "community": "社区端",
+    }.get(value, value or "未设置")
+
+
+@app.template_filter("knowledge_status_name")
+def knowledge_status_name(value):
+    return {
+        "draft": "草稿",
+        "pending": "待审核",
+        "published": "已发布",
+        "rejected": "已退回",
+        "disabled": "已停用",
+    }.get(value, value or "未设置")
+
+
+def knowledge_form_data():
+    fields = {
+        "title": 100,
+        "summary": 240,
+        "content": 8000,
+        "category": 30,
+        "keywords": 200,
+        "domains": 200,
+        "source_name": 160,
+        "source_url": 500,
+    }
+    data = {
+        name: str(request.form.get(name) or "").strip()[:maximum]
+        for name, maximum in fields.items()
+    }
+    data["audience"] = str(request.form.get("audience") or "all").strip()
+    if data["audience"] not in {"all", "elder", "family", "community"}:
+        raise ValueError("请选择正确的适用对象。")
+    if not all(data[name] for name in ("title", "summary", "content", "category")):
+        raise ValueError("标题、摘要、正文和分类不能为空。")
+    if len(data["content"]) < 40:
+        raise ValueError("正文内容过短，请补充到至少40个字。")
+    if data["source_url"]:
+        parsed = urlsplit(data["source_url"])
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("来源链接必须是完整的 http 或 https 地址。")
+    return data
+
+
+def can_read_knowledge_article(article):
+    if article is None:
+        return False
+    if g.current_user["role"] == "admin":
+        return True
+    return (
+        article["status"] == "published"
+        and article["audience"] in {"all", g.current_user["account_type"]}
+    )
+
+
 def get_ai_reply(user_text, system_prompt):
     """调用 DeepSeek，并返回最终回复文本。"""
     if not DEEPSEEK_API_KEY:
@@ -291,18 +393,18 @@ def get_ai_reply(user_text, system_prompt):
     return completion.choices[0].message.content
 
 
-def public_question(index):
-    question = QUESTIONS[index]
+def public_question(questions, index):
+    question = questions[index]
     return {
         "number": index + 1,
-        "total": len(QUESTIONS),
+        "total": len(questions),
         "prompt": question["prompt"],
         "domain": question["domain"],
     }
 
 
-def question_text(index):
-    question = public_question(index)
+def question_text(state, index):
+    question = public_question(state["questions"], index)
     return (
         f"第 {question['number']}/{question['total']} 题"
         f"（{question['domain']}）：\n{question['prompt']}"
@@ -314,6 +416,20 @@ def get_test_state():
     if not test_id:
         return None
     state = TEST_SESSIONS.get(test_id)
+    if (
+        state is None
+        or g.current_user is None
+        or state.get("user_id") != g.current_user["id"]
+    ):
+        return None
+    return state
+
+
+def get_idiom_game_state():
+    game_id = session.get("idiom_game_id")
+    if not game_id:
+        return None
+    state = IDIOM_GAME_SESSIONS.get(game_id)
     if (
         state is None
         or g.current_user is None
@@ -439,6 +555,9 @@ def logout():
     test_id = session.get("test_id")
     if test_id:
         TEST_SESSIONS.pop(test_id, None)
+    game_id = session.get("idiom_game_id")
+    if game_id:
+        IDIOM_GAME_SESSIONS.pop(game_id, None)
     session.clear()
     flash("您已经安全退出。", "success")
     return redirect(url_for("login"))
@@ -467,12 +586,327 @@ def dashboard():
     )
 
 
+@app.route("/knowledge")
+@login_required
+def knowledge_center():
+    query = str(request.args.get("q") or "").strip()[:80]
+    category = str(request.args.get("category") or "").strip()[:30]
+    favorites_only = request.args.get("favorites") == "1"
+    return render_template(
+        "knowledge_index.html",
+        articles=list_knowledge_articles(
+            g.current_user["account_type"],
+            g.current_user["id"],
+            query=query,
+            category=category,
+            favorites_only=favorites_only,
+        ),
+        categories=list_knowledge_categories(g.current_user["account_type"]),
+        query=query,
+        selected_category=category,
+        favorites_only=favorites_only,
+    )
+
+
+@app.route("/knowledge/<int:article_id>")
+@login_required
+def knowledge_detail(article_id):
+    article = get_knowledge_article(article_id, g.current_user["id"])
+    if article is None:
+        abort(404)
+    if not can_read_knowledge_article(article):
+        abort(403)
+    return render_template("knowledge_detail.html", article=article)
+
+
+@app.route("/knowledge/<int:article_id>/favorite", methods=["POST"])
+@login_required
+def knowledge_favorite(article_id):
+    article = get_knowledge_article(article_id, g.current_user["id"])
+    if article is None:
+        abort(404)
+    if not can_read_knowledge_article(article):
+        abort(403)
+    favorite = request.form.get("favorite") == "1"
+    set_knowledge_favorite(g.current_user["id"], article_id, favorite)
+    flash("已加入收藏。" if favorite else "已取消收藏。", "success")
+    next_url = request.form.get("next")
+    return redirect(
+        next_url if is_safe_next_url(next_url) else
+        url_for("knowledge_detail", article_id=article_id)
+    )
+
+
+@app.route("/knowledge/submissions")
+@community_required
+def knowledge_submissions():
+    return render_template(
+        "knowledge_submissions.html",
+        articles=list_user_knowledge_submissions(g.current_user["id"]),
+    )
+
+
+@app.route("/knowledge/submissions/new", methods=["GET", "POST"])
+@community_required
+def new_knowledge_submission():
+    if request.method == "POST":
+        try:
+            data = knowledge_form_data()
+        except ValueError as error:
+            flash(str(error), "error")
+            return render_template(
+                "knowledge_form.html",
+                article=request.form,
+                form_title="撰写社区知识草稿",
+                form_action=url_for("new_knowledge_submission"),
+                admin_mode=False,
+            )
+        article_id = create_knowledge_article(
+            data,
+            g.current_user["id"],
+            status="draft",
+        )
+        flash("草稿已保存。确认内容和来源后，请提交管理员审核。", "success")
+        return redirect(url_for("edit_knowledge_submission", article_id=article_id))
+    return render_template(
+        "knowledge_form.html",
+        article=None,
+        form_title="撰写社区知识草稿",
+        form_action=url_for("new_knowledge_submission"),
+        admin_mode=False,
+    )
+
+
+@app.route(
+    "/knowledge/submissions/<int:article_id>/edit",
+    methods=["GET", "POST"],
+)
+@community_required
+def edit_knowledge_submission(article_id):
+    article = get_knowledge_article(article_id, g.current_user["id"])
+    if article is None:
+        abort(404)
+    if (
+        article["author_id"] != g.current_user["id"]
+        or article["status"] not in {"draft", "rejected"}
+    ):
+        abort(403)
+    if request.method == "POST":
+        try:
+            data = knowledge_form_data()
+        except ValueError as error:
+            flash(str(error), "error")
+            return render_template(
+                "knowledge_form.html",
+                article=request.form,
+                form_title="编辑社区知识草稿",
+                form_action=url_for(
+                    "edit_knowledge_submission",
+                    article_id=article_id,
+                ),
+                admin_mode=False,
+            )
+        update_knowledge_article(article_id, data, status="draft")
+        flash("草稿已保存。", "success")
+        return redirect(url_for("edit_knowledge_submission", article_id=article_id))
+    return render_template(
+        "knowledge_form.html",
+        article=article,
+        form_title="编辑社区知识草稿",
+        form_action=url_for("edit_knowledge_submission", article_id=article_id),
+        admin_mode=False,
+    )
+
+
+@app.route(
+    "/knowledge/submissions/<int:article_id>/submit",
+    methods=["POST"],
+)
+@community_required
+def send_knowledge_submission(article_id):
+    if not submit_knowledge_article(article_id, g.current_user["id"]):
+        abort(403)
+    flash("已提交审核。管理员发布前，文章不会出现在知识中心。", "success")
+    return redirect(url_for("knowledge_submissions"))
+
+
+@app.route("/admin/knowledge")
+@admin_required
+def admin_knowledge():
+    selected_status = str(request.args.get("status") or "").strip()
+    if selected_status not in {
+        "", "draft", "pending", "published", "rejected", "disabled"
+    }:
+        selected_status = ""
+    return render_template(
+        "admin_knowledge.html",
+        articles=list_admin_knowledge_articles(selected_status),
+        selected_status=selected_status,
+    )
+
+
+@app.route("/admin/knowledge/new", methods=["GET", "POST"])
+@admin_required
+def admin_new_knowledge():
+    if request.method == "POST":
+        try:
+            data = knowledge_form_data()
+        except ValueError as error:
+            flash(str(error), "error")
+            return render_template(
+                "knowledge_form.html",
+                article=request.form,
+                form_title="新建知识文章",
+                form_action=url_for("admin_new_knowledge"),
+                admin_mode=True,
+            )
+        status = request.form.get("status")
+        if status not in {"draft", "published"}:
+            status = "draft"
+        create_knowledge_article(data, g.current_user["id"], status=status)
+        flash("知识文章已保存。", "success")
+        return redirect(url_for("admin_knowledge"))
+    return render_template(
+        "knowledge_form.html",
+        article=None,
+        form_title="新建知识文章",
+        form_action=url_for("admin_new_knowledge"),
+        admin_mode=True,
+    )
+
+
+@app.route(
+    "/admin/knowledge/<int:article_id>/edit",
+    methods=["GET", "POST"],
+)
+@admin_required
+def admin_edit_knowledge(article_id):
+    article = get_knowledge_article(article_id, g.current_user["id"])
+    if article is None:
+        abort(404)
+    if request.method == "POST":
+        try:
+            data = knowledge_form_data()
+        except ValueError as error:
+            flash(str(error), "error")
+            return render_template(
+                "knowledge_form.html",
+                article=request.form,
+                form_title="编辑知识文章",
+                form_action=url_for(
+                    "admin_edit_knowledge",
+                    article_id=article_id,
+                ),
+                admin_mode=True,
+            )
+        status = request.form.get("status")
+        if status not in {"draft", "published", "disabled"}:
+            status = article["status"]
+        update_knowledge_article(article_id, data, status=status)
+        flash("知识文章已更新。", "success")
+        return redirect(url_for("admin_knowledge"))
+    return render_template(
+        "knowledge_form.html",
+        article=article,
+        form_title="编辑知识文章",
+        form_action=url_for("admin_edit_knowledge", article_id=article_id),
+        admin_mode=True,
+    )
+
+
+@app.route(
+    "/admin/knowledge/<int:article_id>/review",
+    methods=["GET", "POST"],
+)
+@admin_required
+def admin_review_knowledge(article_id):
+    article = get_knowledge_article(article_id, g.current_user["id"])
+    if article is None:
+        abort(404)
+    if request.method == "POST":
+        decision = request.form.get("decision")
+        if decision not in {"published", "rejected"}:
+            flash("请选择“通过发布”或“退回修改”。", "error")
+        elif not review_knowledge_article(
+            article_id,
+            g.current_user["id"],
+            decision,
+            str(request.form.get("review_notes") or "").strip()[:1000],
+        ):
+            flash("该文章当前不在待审核状态。", "error")
+        else:
+            flash(
+                "文章已审核并发布。" if decision == "published"
+                else "文章已退回社区作者修改。",
+                "success",
+            )
+            return redirect(url_for("admin_knowledge"))
+        article = get_knowledge_article(article_id, g.current_user["id"])
+    return render_template("knowledge_review.html", article=article)
+
+
 @app.route("/assistant")
 @login_required
 def assistant_page():
     if g.current_user["account_type"] in {"family", "community"}:
         abort(403)
     return render_template("index.html")
+
+
+@app.route("/games/idiom")
+@elder_required
+def idiom_game_page():
+    return render_template(
+        "idiom_game.html",
+        idiom_count=count_idioms(),
+    )
+
+
+@app.route("/games/idiom/start", methods=["POST"])
+@elder_required
+def start_idiom_game():
+    previous_id = session.get("idiom_game_id")
+    if previous_id:
+        IDIOM_GAME_SESSIONS.pop(previous_id, None)
+
+    game_id = uuid.uuid4().hex
+    state = new_game_state(g.current_user["id"])
+    IDIOM_GAME_SESSIONS[game_id] = state
+    session["idiom_game_id"] = game_id
+    return jsonify({
+        "active": True,
+        "computer_idiom": state["computer_idiom"],
+        "required_character": state["required_character"],
+        "rounds": 0,
+        "hints": hints_for(state),
+    })
+
+
+@app.route("/games/idiom/play", methods=["POST"])
+@elder_required
+def submit_idiom():
+    state = get_idiom_game_state()
+    if state is None:
+        return jsonify({"error": "游戏尚未开始，请先点击“开始游戏”。"}), 409
+
+    data = request.get_json(silent=True) or {}
+    result = play_turn(state, data.get("idiom"))
+    if not result["ok"]:
+        return jsonify(result), 422
+    if result.get("completed"):
+        game_id = session.pop("idiom_game_id", None)
+        if game_id:
+            IDIOM_GAME_SESSIONS.pop(game_id, None)
+    return jsonify(result)
+
+
+@app.route("/games/idiom/reset", methods=["POST"])
+@elder_required
+def reset_idiom_game():
+    game_id = session.pop("idiom_game_id", None)
+    if game_id:
+        IDIOM_GAME_SESSIONS.pop(game_id, None)
+    return jsonify({"active": False})
 
 
 @app.route("/history")
@@ -533,12 +967,18 @@ def assessment_report(assessment_id):
 
     scores = json.loads(assessment["domain_scores"])
     maximums = domain_max_points()
+    report = build_assessment_report(assessment, scores, maximums)
     return render_template(
         "assessment_report.html",
         assessment=assessment,
         domain_scores=scores,
         domain_maximums=maximums,
-        report=build_assessment_report(assessment, scores, maximums),
+        report=report,
+        recommended_articles=list_recommended_knowledge(
+            g.current_user["account_type"],
+            g.current_user["id"],
+            [item["domain"] for item in report["priorities"]],
+        ),
     )
 
 
@@ -794,10 +1234,12 @@ def start_test():
         input_language = "browser"
 
     test_id = uuid.uuid4().hex
+    selected_questions = build_test_questions()
     TEST_SESSIONS[test_id] = {
         "test_id": test_id,
         "user_id": g.current_user["id"],
         "question_index": 0,
+        "questions": selected_questions,
         "score": 0,
         "domain_scores": {},
         "input_language": input_language,
@@ -810,12 +1252,12 @@ def start_test():
         "下面开始认知表现测试，共 10 题。请放松作答，可以打字，也可以点击说话。"
         "测试过程中不会立即提示对错。\n\n"
         "本测试仅用于项目演示和初步参考，不构成医学诊断。\n\n"
-        + question_text(0)
+        + question_text(TEST_SESSIONS[test_id], 0)
     )
     return jsonify({
         "testing": True,
         "completed": False,
-        "progress": f"1/{len(QUESTIONS)}",
+        "progress": f"1/{TEST_QUESTION_COUNT}",
         "reply": reply,
     })
 
@@ -833,7 +1275,7 @@ def answer_test():
         return jsonify({"error": "没有收到回答。"}), 400
 
     index = state["question_index"]
-    question = QUESTIONS[index]
+    question = state["questions"][index]
     earned = score_answer(question, answer)
     state["score"] += earned
     state["domain_scores"][question["domain"]] = (
@@ -846,7 +1288,8 @@ def answer_test():
     })
     state["question_index"] += 1
 
-    if state["question_index"] >= len(QUESTIONS):
+    question_count = len(state["questions"])
+    if state["question_index"] >= question_count:
         maximum = total_points()
         percentage = round(state["score"] / maximum * 100)
         level = result_level(percentage)
@@ -859,6 +1302,10 @@ def answer_test():
             level=level,
             domain_scores=state["domain_scores"],
             input_language=state["input_language"],
+            question_bank_version=QUESTION_BANK_VERSION,
+            question_ids=[
+                question["id"] for question in state["questions"]
+            ],
         )
         reply = format_result(state)
         test_id = session.pop("test_id", None)
@@ -867,7 +1314,7 @@ def answer_test():
         return jsonify({
             "testing": False,
             "completed": True,
-            "progress": f"{len(QUESTIONS)}/{len(QUESTIONS)}",
+            "progress": f"{question_count}/{question_count}",
             "reply": reply,
         })
 
@@ -875,8 +1322,8 @@ def answer_test():
     return jsonify({
         "testing": True,
         "completed": False,
-        "progress": f"{next_index + 1}/{len(QUESTIONS)}",
-        "reply": "回答已记录。\n\n" + question_text(next_index),
+        "progress": f"{next_index + 1}/{question_count}",
+        "reply": "回答已记录。\n\n" + question_text(state, next_index),
     })
 
 
@@ -888,10 +1335,14 @@ def test_status():
         return jsonify({"testing": False})
 
     index = state["question_index"]
+    question_count = len(state["questions"])
     return jsonify({
         "testing": True,
-        "progress": f"{index + 1}/{len(QUESTIONS)}",
-        "reply": "检测到尚未完成的测试，我们从当前题继续。\n\n" + question_text(index),
+        "progress": f"{index + 1}/{question_count}",
+        "reply": (
+            "检测到尚未完成的测试，我们从当前题继续。\n\n"
+            + question_text(state, index)
+        ),
     })
 
 

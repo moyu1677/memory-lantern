@@ -137,6 +137,28 @@
     <p>{{ report['follow_up'] }}</p>
 </section>
 
+{% if recommended_articles %}
+<section class="report-section">
+    <div class="section-title-row">
+        <span class="report-section-icon" aria-hidden="true">📚</span>
+        <div>
+            <h2>结合本次结果的延伸阅读</h2>
+            <p>根据本次需要优先关注的能力维度，从已审核知识文章中自动匹配。</p>
+        </div>
+    </div>
+    <div class="report-knowledge-grid">
+        {% for article in recommended_articles %}
+            <article class="report-knowledge-card">
+                <span>{{ article['category'] }}</span>
+                <h3>{{ article['title'] }}</h3>
+                <p>{{ article['summary'] }}</p>
+                <a class="button" href="{{ url_for('knowledge_detail', article_id=article['id']) }}">阅读文章</a>
+            </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 <section class="urgent-box" role="note">
     <div class="report-section-icon" aria-hidden="true">⚠️</div>
     <div>

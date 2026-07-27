@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS assessments (
     result_level TEXT NOT NULL,
     domain_scores TEXT NOT NULL,
     input_language TEXT NOT NULL,
+    question_bank_version TEXT,
+    question_ids TEXT,
     completed_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
@@ -69,7 +71,70 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_recipient_created
 ON messages(recipient_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS idioms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    word TEXT NOT NULL UNIQUE,
+    first_char TEXT NOT NULL,
+    last_char TEXT NOT NULL,
+    source TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1
+        CHECK (is_active IN (0, 1))
+);
+
+CREATE INDEX IF NOT EXISTS idx_idioms_first_char
+ON idioms(first_char, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_idioms_last_char
+ON idioms(last_char, is_active);
+
+CREATE TABLE IF NOT EXISTS knowledge_articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    content TEXT NOT NULL,
+    category TEXT NOT NULL,
+    audience TEXT NOT NULL DEFAULT 'all'
+        CHECK (audience IN ('all', 'elder', 'family', 'community')),
+    keywords TEXT NOT NULL DEFAULT '',
+    domains TEXT NOT NULL DEFAULT '',
+    source_name TEXT NOT NULL DEFAULT '',
+    source_url TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'pending', 'published', 'rejected', 'disabled')),
+    author_id INTEGER,
+    reviewer_id INTEGER,
+    review_notes TEXT NOT NULL DEFAULT '',
+    is_seed INTEGER NOT NULL DEFAULT 0
+        CHECK (is_seed IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    published_at TEXT,
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_articles_status_audience
+ON knowledge_articles(status, audience, category);
+
+CREATE TABLE IF NOT EXISTS knowledge_favorites (
+    user_id INTEGER NOT NULL,
+    article_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, article_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (article_id) REFERENCES knowledge_articles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS app_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
+
+IDIOM_SEED_VERSION = "china-idiom-0.0.3-four-char-v2"
 
 
 def utc_now():
@@ -113,6 +178,21 @@ def init_db():
     if "binding_code" not in columns:
         connection.execute("ALTER TABLE users ADD COLUMN binding_code TEXT")
 
+    assessment_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(assessments)"
+        ).fetchall()
+    }
+    if "question_bank_version" not in assessment_columns:
+        connection.execute(
+            "ALTER TABLE assessments ADD COLUMN question_bank_version TEXT"
+        )
+    if "question_ids" not in assessment_columns:
+        connection.execute(
+            "ALTER TABLE assessments ADD COLUMN question_ids TEXT"
+        )
+
     # 兼容旧数据库：旧管理员仍是后台账号，旧普通用户视为老人账号。
     connection.execute(
         """
@@ -143,7 +223,102 @@ def init_db():
             "UPDATE users SET binding_code = ? WHERE id = ?",
             (_new_binding_code(connection), row["id"]),
         )
+    _seed_idioms(connection)
+    _seed_knowledge_articles(connection)
     connection.commit()
+
+
+def _seed_idioms(connection):
+    current = connection.execute(
+        "SELECT value FROM app_metadata WHERE key = 'idiom_seed_version'"
+    ).fetchone()
+    if current is not None and current["value"] == IDIOM_SEED_VERSION:
+        return
+
+    seed_path = Path(current_app.root_path) / "data" / "idioms_seed.txt"
+    if not seed_path.exists():
+        raise RuntimeError(f"缺少成语种子文件：{seed_path}")
+
+    words = {
+        line.strip()
+        for line in seed_path.read_text(encoding="utf-8").splitlines()
+        if len(line.strip()) == 4
+    }
+    connection.executemany(
+        """
+        INSERT OR IGNORE INTO idioms (
+            word, first_char, last_char, source
+        ) VALUES (?, ?, ?, ?)
+        """,
+        (
+            (word, word[0], word[-1], "china-idiom-0.0.3")
+            for word in words
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO app_metadata (key, value)
+        VALUES ('idiom_seed_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """,
+        (IDIOM_SEED_VERSION,),
+    )
+
+
+def _seed_knowledge_articles(connection):
+    from knowledge_seed import KNOWLEDGE_ARTICLES, KNOWLEDGE_SEED_VERSION
+
+    current = connection.execute(
+        "SELECT value FROM app_metadata WHERE key = 'knowledge_seed_version'"
+    ).fetchone()
+    if current is not None and current["value"] == KNOWLEDGE_SEED_VERSION:
+        return
+
+    now = utc_now()
+    for article in KNOWLEDGE_ARTICLES:
+        connection.execute(
+            """
+            INSERT INTO knowledge_articles (
+                slug, title, summary, content, category, audience,
+                keywords, domains, source_name, source_url, status,
+                is_seed, created_at, updated_at, published_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', 1, ?, ?, ?)
+            ON CONFLICT(slug) DO UPDATE SET
+                title = excluded.title,
+                summary = excluded.summary,
+                content = excluded.content,
+                category = excluded.category,
+                audience = excluded.audience,
+                keywords = excluded.keywords,
+                domains = excluded.domains,
+                source_name = excluded.source_name,
+                source_url = excluded.source_url,
+                updated_at = excluded.updated_at
+            """,
+            (
+                article["slug"],
+                article["title"],
+                article["summary"],
+                article["content"],
+                article["category"],
+                article["audience"],
+                article["keywords"],
+                article["domains"],
+                article["source_name"],
+                article["source_url"],
+                now,
+                now,
+                now,
+            ),
+        )
+    connection.execute(
+        """
+        INSERT INTO app_metadata (key, value)
+        VALUES ('knowledge_seed_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """,
+        (KNOWLEDGE_SEED_VERSION,),
+    )
 
 
 def init_app(app):
@@ -442,6 +617,369 @@ def count_unread_messages(user_id):
     ).fetchone()[0]
 
 
+def list_knowledge_categories(account_type):
+    audience_sql = (
+        "" if account_type == "admin"
+        else "AND audience IN ('all', ?)"
+    )
+    parameters = () if account_type == "admin" else (account_type,)
+    return [
+        row["category"]
+        for row in get_db().execute(
+            f"""
+            SELECT DISTINCT category
+            FROM knowledge_articles
+            WHERE status = 'published'
+              {audience_sql}
+            ORDER BY category COLLATE NOCASE
+            """,
+            parameters,
+        ).fetchall()
+    ]
+
+
+def list_knowledge_articles(
+    account_type,
+    user_id,
+    query="",
+    category="",
+    favorites_only=False,
+    limit=100,
+):
+    conditions = ["a.status = 'published'"]
+    parameters = []
+    if account_type != "admin":
+        conditions.append("a.audience IN ('all', ?)")
+        parameters.append(account_type)
+    normalized_query = str(query or "").strip()
+    if normalized_query:
+        conditions.append(
+            """
+            (
+                a.title LIKE ? OR a.summary LIKE ? OR
+                a.content LIKE ? OR a.keywords LIKE ?
+            )
+            """
+        )
+        pattern = f"%{normalized_query}%"
+        parameters.extend([pattern, pattern, pattern, pattern])
+    if category:
+        conditions.append("a.category = ?")
+        parameters.append(category)
+    if favorites_only:
+        conditions.append("f.user_id IS NOT NULL")
+    return get_db().execute(
+        f"""
+        SELECT
+            a.*,
+            CASE WHEN f.user_id IS NULL THEN 0 ELSE 1 END AS is_favorite
+        FROM knowledge_articles AS a
+        LEFT JOIN knowledge_favorites AS f
+          ON f.article_id = a.id AND f.user_id = ?
+        WHERE {" AND ".join(conditions)}
+        ORDER BY a.published_at DESC, a.id DESC
+        LIMIT ?
+        """,
+        [user_id, *parameters, limit],
+    ).fetchall()
+
+
+def get_knowledge_article(article_id, user_id=None):
+    return get_db().execute(
+        """
+        SELECT
+            a.*,
+            author.display_name AS author_name,
+            reviewer.display_name AS reviewer_name,
+            CASE WHEN f.user_id IS NULL THEN 0 ELSE 1 END AS is_favorite
+        FROM knowledge_articles AS a
+        LEFT JOIN users AS author ON author.id = a.author_id
+        LEFT JOIN users AS reviewer ON reviewer.id = a.reviewer_id
+        LEFT JOIN knowledge_favorites AS f
+          ON f.article_id = a.id AND f.user_id = ?
+        WHERE a.id = ?
+        """,
+        (user_id, article_id),
+    ).fetchone()
+
+
+def set_knowledge_favorite(user_id, article_id, favorite):
+    connection = get_db()
+    if favorite:
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO knowledge_favorites (
+                user_id, article_id, created_at
+            ) VALUES (?, ?, ?)
+            """,
+            (user_id, article_id, utc_now()),
+        )
+    else:
+        connection.execute(
+            """
+            DELETE FROM knowledge_favorites
+            WHERE user_id = ? AND article_id = ?
+            """,
+            (user_id, article_id),
+        )
+    connection.commit()
+
+
+def create_knowledge_article(data, author_id, status="draft"):
+    now = utc_now()
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        INSERT INTO knowledge_articles (
+            title, summary, content, category, audience, keywords,
+            domains, source_name, source_url, status, author_id,
+            created_at, updated_at, published_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            data["title"],
+            data["summary"],
+            data["content"],
+            data["category"],
+            data["audience"],
+            data["keywords"],
+            data["domains"],
+            data["source_name"],
+            data["source_url"],
+            status,
+            author_id,
+            now,
+            now,
+            now if status == "published" else None,
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def update_knowledge_article(article_id, data, status=None):
+    connection = get_db()
+    status_sql = ""
+    parameters = [
+        data["title"],
+        data["summary"],
+        data["content"],
+        data["category"],
+        data["audience"],
+        data["keywords"],
+        data["domains"],
+        data["source_name"],
+        data["source_url"],
+        utc_now(),
+    ]
+    if status is not None:
+        status_sql = ", status = ?, published_at = ?"
+        parameters.extend([
+            status,
+            utc_now() if status == "published" else None,
+        ])
+    parameters.append(article_id)
+    connection.execute(
+        f"""
+        UPDATE knowledge_articles
+        SET title = ?, summary = ?, content = ?, category = ?,
+            audience = ?, keywords = ?, domains = ?, source_name = ?,
+            source_url = ?, updated_at = ?
+            {status_sql}
+        WHERE id = ?
+        """,
+        parameters,
+    )
+    connection.commit()
+
+
+def submit_knowledge_article(article_id, author_id):
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        UPDATE knowledge_articles
+        SET status = 'pending', review_notes = '', updated_at = ?
+        WHERE id = ? AND author_id = ? AND status IN ('draft', 'rejected')
+        """,
+        (utc_now(), article_id, author_id),
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def list_user_knowledge_submissions(author_id):
+    return get_db().execute(
+        """
+        SELECT * FROM knowledge_articles
+        WHERE author_id = ? AND is_seed = 0
+        ORDER BY updated_at DESC
+        """,
+        (author_id,),
+    ).fetchall()
+
+
+def list_admin_knowledge_articles(status=""):
+    parameters = []
+    condition = ""
+    if status:
+        condition = "WHERE a.status = ?"
+        parameters.append(status)
+    return get_db().execute(
+        f"""
+        SELECT
+            a.*,
+            author.display_name AS author_name,
+            reviewer.display_name AS reviewer_name
+        FROM knowledge_articles AS a
+        LEFT JOIN users AS author ON author.id = a.author_id
+        LEFT JOIN users AS reviewer ON reviewer.id = a.reviewer_id
+        {condition}
+        ORDER BY
+            CASE a.status WHEN 'pending' THEN 0 ELSE 1 END,
+            a.updated_at DESC
+        """,
+        parameters,
+    ).fetchall()
+
+
+def review_knowledge_article(article_id, reviewer_id, decision, notes=""):
+    if decision not in {"published", "rejected"}:
+        raise ValueError("不支持的审核结果")
+    now = utc_now()
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        UPDATE knowledge_articles
+        SET status = ?, reviewer_id = ?, review_notes = ?,
+            reviewed_at = ?, updated_at = ?, published_at = ?
+        WHERE id = ? AND status = 'pending'
+        """,
+        (
+            decision,
+            reviewer_id,
+            notes,
+            now,
+            now,
+            now if decision == "published" else None,
+            article_id,
+        ),
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def list_recommended_knowledge(account_type, user_id, domains, limit=4):
+    domain_names = [str(item).strip() for item in domains if str(item).strip()]
+    parameters = [user_id]
+    audience_sql = ""
+    if account_type != "admin":
+        audience_sql = "AND a.audience IN ('all', ?)"
+        parameters.append(account_type)
+    domain_sql = ""
+    if domain_names:
+        domain_sql = (
+            " AND (" +
+            " OR ".join("a.domains LIKE ?" for _ in domain_names) +
+            ")"
+        )
+        parameters.extend(f"%{name}%" for name in domain_names)
+    parameters.append(limit)
+    return get_db().execute(
+        f"""
+        SELECT
+            a.*,
+            CASE WHEN f.user_id IS NULL THEN 0 ELSE 1 END AS is_favorite
+        FROM knowledge_articles AS a
+        LEFT JOIN knowledge_favorites AS f
+          ON f.article_id = a.id AND f.user_id = ?
+        WHERE a.status = 'published'
+          {audience_sql}
+          {domain_sql}
+        ORDER BY
+          CASE WHEN a.category = '结果解读' THEN 1 ELSE 0 END,
+          a.published_at DESC,
+          a.id DESC
+        LIMIT ?
+        """,
+        parameters,
+    ).fetchall()
+
+
+def count_idioms():
+    return get_db().execute(
+        "SELECT COUNT(*) FROM idioms WHERE is_active = 1"
+    ).fetchone()[0]
+
+
+def idiom_exists(word):
+    return get_db().execute(
+        """
+        SELECT 1 FROM idioms
+        WHERE word = ? AND is_active = 1
+        """,
+        (word,),
+    ).fetchone() is not None
+
+
+def list_idioms_starting(first_character, excluded=(), limit=100):
+    excluded = tuple(excluded)
+    parameters = [first_character]
+    exclusion_sql = ""
+    if excluded:
+        placeholders = ",".join("?" for _ in excluded)
+        exclusion_sql = f"AND word NOT IN ({placeholders})"
+        parameters.extend(excluded)
+    parameters.append(limit)
+    return [
+        row["word"]
+        for row in get_db().execute(
+            f"""
+            SELECT word FROM idioms
+            WHERE first_char = ? AND is_active = 1
+              {exclusion_sql}
+            ORDER BY RANDOM()
+            LIMIT ?
+            """,
+            parameters,
+        ).fetchall()
+    ]
+
+
+def list_random_idioms(limit=200):
+    return [
+        row["word"]
+        for row in get_db().execute(
+            """
+            SELECT word FROM idioms
+            WHERE is_active = 1
+            ORDER BY RANDOM()
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    ]
+
+
+def random_chainable_idiom():
+    row = get_db().execute(
+        """
+        SELECT current.word
+        FROM idioms AS current
+        WHERE current.is_active = 1
+          AND EXISTS (
+              SELECT 1
+              FROM idioms AS next
+              WHERE next.first_char = current.last_char
+                AND next.is_active = 1
+                AND next.word != current.word
+          )
+        ORDER BY RANDOM()
+        LIMIT 1
+        """
+    ).fetchone()
+    return row["word"] if row else None
+
+
 def save_assessment(
     test_session_id,
     user_id,
@@ -451,6 +989,8 @@ def save_assessment(
     level,
     domain_scores,
     input_language,
+    question_bank_version=None,
+    question_ids=None,
 ):
     connection = get_db()
     cursor = connection.execute(
@@ -464,8 +1004,10 @@ def save_assessment(
             result_level,
             domain_scores,
             input_language,
+            question_bank_version,
+            question_ids,
             completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             test_session_id,
@@ -476,6 +1018,10 @@ def save_assessment(
             level,
             json.dumps(domain_scores, ensure_ascii=False),
             input_language,
+            question_bank_version,
+            json.dumps(question_ids, ensure_ascii=False)
+            if question_ids is not None
+            else None,
             utc_now(),
         ),
     )

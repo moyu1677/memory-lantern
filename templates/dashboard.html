@@ -54,6 +54,23 @@
                 进入留言中心{% if unread_message_count %} · {{ unread_message_count }}条未读{% endif %}
             </a>
         </section>
+
+        <section class="panel quick-knowledge-card">
+            <div class="section-title-row">
+                <span class="report-section-icon" aria-hidden="true">📚</span>
+                <div>
+                    <h2>健康知识中心</h2>
+                    <p>
+                        {% if current_user['account_type'] == 'community' %}
+                            查找照护资料，也可以提交社区经验供管理员审核。
+                        {% else %}
+                            查看沟通陪伴、生活安全和家属支持建议。
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            <a class="button button-wide" href="{{ url_for('knowledge_center') }}">进入知识中心</a>
+        </section>
     </div>
 
     <header class="page-heading care-heading">
@@ -134,7 +151,7 @@
         <section class="feature-card">
             <div class="feature-icon" aria-hidden="true">🧠</div>
             <h2>认知表现测试</h2>
-            <p>通过简短问题了解本次认知任务表现，支持普通话、粤语和潮汕话。</p>
+            <p>每次从记忆、定向、注意力等题库中随机抽取10题，支持普通话、粤语和潮汕话。</p>
             <a class="button button-wide" href="{{ url_for('assistant_page') }}">开始测试</a>
         </section>
 
@@ -150,6 +167,20 @@
             <h2>历史测试结果</h2>
             <p>按时间查看以往测试分数、能力维度和专属建议报告。</p>
             <a class="button button-wide" href="{{ url_for('history') }}">查看历史</a>
+        </section>
+
+        <section class="feature-card game-feature-card">
+            <div class="feature-icon" aria-hidden="true">🧩</div>
+            <h2>成语接龙小游戏</h2>
+            <p>和电脑轮流接成语，支持打字、普通话、粤语和潮汕话输入，想不起来还可以看提示。</p>
+            <a class="button button-wide" href="{{ url_for('idiom_game_page') }}">开始成语接龙</a>
+        </section>
+
+        <section class="feature-card">
+            <div class="feature-icon" aria-hidden="true">📚</div>
+            <h2>健康知识中心</h2>
+            <p>用大字阅读记忆练习、生活安全和健康生活知识，还可以朗读全文。</p>
+            <a class="button button-wide" href="{{ url_for('knowledge_center') }}">阅读健康知识</a>
         </section>
 
         {% if current_user['role'] == 'admin' %}
