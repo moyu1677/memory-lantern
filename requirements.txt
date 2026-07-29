@@ -2,3 +2,5 @@ Flask
 openai
 python-dotenv
 websocket-client
+python-docx
+pypdf

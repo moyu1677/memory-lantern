@@ -224,6 +224,107 @@
             cursor: pointer;
         }
 
+        .knowledge-toggle {
+            min-height: 76px;
+            padding: 13px 22px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            border-bottom: 1px solid var(--line);
+            background: #f9fbfa;
+        }
+
+        .knowledge-toggle-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .knowledge-toggle-copy strong {
+            font-size: 19px;
+        }
+
+        .knowledge-toggle-copy small {
+            color: var(--text-soft);
+            font-size: 14px;
+        }
+
+        .toggle-label {
+            position: relative;
+            width: 74px;
+            height: 42px;
+            flex: 0 0 74px;
+            cursor: pointer;
+        }
+
+        .toggle-label input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle-switch {
+            position: absolute;
+            inset: 0;
+            border-radius: 999px;
+            background: #899592;
+            transition: background-color 0.18s ease;
+        }
+
+        .toggle-switch::after {
+            content: "";
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 7px rgba(25, 45, 40, 0.25);
+            transition: transform 0.18s ease;
+        }
+
+        .toggle-label input:checked + .toggle-switch {
+            background: var(--primary);
+        }
+
+        .toggle-label input:checked + .toggle-switch::after {
+            transform: translateX(32px);
+        }
+
+        .toggle-label input:focus-visible + .toggle-switch {
+            outline: 4px solid var(--focus);
+            outline-offset: 3px;
+        }
+
+        .message-references {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(45, 84, 76, 0.2);
+            font-size: 15px;
+            line-height: 1.55;
+        }
+
+        .message-references strong {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--primary-dark);
+        }
+
+        .message-reference-list {
+            margin: 0;
+            padding-left: 22px;
+        }
+
+        .message-reference-list li + li {
+            margin-top: 8px;
+        }
+
+        .message-reference-list a {
+            color: #174f8a;
+            font-weight: 700;
+        }
+
         .input-area {
             padding: 16px 22px 20px;
             display: grid;
@@ -397,6 +498,11 @@
                 width: 100%;
             }
 
+            .knowledge-toggle {
+                padding: 12px 14px;
+                align-items: flex-start;
+            }
+
             .input-area {
                 padding: 12px 14px 16px;
                 grid-template-columns: 1fr 1fr;
@@ -458,6 +564,18 @@
                 </select>
             </div>
 
+            <div class="knowledge-toggle" id="knowledge-toggle-row">
+                <label class="toggle-label" for="use-knowledge">
+                    <input type="checkbox" id="use-knowledge" checked>
+                    <span class="toggle-switch" aria-hidden="true"></span>
+                    <span class="sr-only">启用知识库回答</span>
+                </label>
+                <div class="knowledge-toggle-copy">
+                    <strong>启用知识库回答</strong>
+                    <small>健康与照护问题优先使用已审核资料；打招呼和闲聊仍会正常回复</small>
+                </div>
+            </div>
+
             <div class="input-area">
                 <label class="sr-only" for="user-input">输入您想说的话</label>
                 <input type="text" id="user-input" placeholder="请在这里输入内容……" onkeypress="if(event.keyCode==13) sendMessage()">
@@ -470,6 +588,25 @@
     <script>
         let isTesting = false;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const knowledgeToggle = document.getElementById('use-knowledge');
+        try {
+            const savedKnowledgeSetting = localStorage.getItem('memoryLanternUseKnowledge');
+            if (savedKnowledgeSetting !== null) {
+                knowledgeToggle.checked = savedKnowledgeSetting === 'true';
+            }
+        } catch (error) {
+            console.warn('无法读取知识库开关设置:', error);
+        }
+        knowledgeToggle.addEventListener('change', () => {
+            try {
+                localStorage.setItem(
+                    'memoryLanternUseKnowledge',
+                    String(knowledgeToggle.checked)
+                );
+            } catch (error) {
+                console.warn('无法保存知识库开关设置:', error);
+            }
+        });
 
         function csrfHeaders(extraHeaders={}) {
             return {
@@ -489,6 +626,7 @@
 
             document.getElementById('user-input').placeholder =
                 active ? '请输入本题答案...' : '输入你想说的话...';
+            document.getElementById('knowledge-toggle-row').hidden = active;
         }
 
         async function startTest() {
@@ -558,7 +696,9 @@
             sendBtn.disabled = true; // 防止重复点击
 
             const loadingId = appendMessage(
-                isTesting ? '正在记录回答...' : '正在思考...',
+                isTesting
+                    ? '正在记录回答...'
+                    : (knowledgeToggle.checked ? '正在查询已审核知识资料...' : '正在思考...'),
                 'ai',
                 true
             );
@@ -570,7 +710,10 @@
                     {
                     method: 'POST',
                     headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({
+                        message: message,
+                        use_knowledge: !isTesting && knowledgeToggle.checked
+                    })
                     }
                 );
 
@@ -580,7 +723,7 @@
                 }
 
                 removeMessage(loadingId);
-                appendMessage(data.reply, 'ai');
+                appendMessage(data.reply, 'ai', false, data.references || []);
                 speakText(data.reply);
 
                 if (isTesting) {
@@ -598,11 +741,55 @@
             }
         }
 
-        function appendMessage(text, sender, isLoading=false) {
+        function appendMessage(text, sender, isLoading=false, references=[]) {
             const chatBox = document.getElementById('chat-box');
             const div = document.createElement('div');
             div.classList.add('message', sender);
             div.innerText = text;
+
+            if (Array.isArray(references) && references.length > 0) {
+                const referenceBox = document.createElement('div');
+                referenceBox.className = 'message-references';
+                const heading = document.createElement('strong');
+                heading.textContent = '参考资料';
+                referenceBox.appendChild(heading);
+
+                const list = document.createElement('ol');
+                list.className = 'message-reference-list';
+                references.forEach(reference => {
+                    const item = document.createElement('li');
+                    const title = document.createElement('span');
+                    title.textContent = `${reference.title || '未命名资料'} · ${reference.source_name || '本站已审核资料'}`;
+                    item.appendChild(title);
+
+                    if (reference.section_label) {
+                        const section = document.createElement('span');
+                        section.textContent = `（${reference.section_label}）`;
+                        item.appendChild(section);
+                    }
+
+                    if (reference.source_url) {
+                        try {
+                            const parsedUrl = new URL(reference.source_url);
+                            if (['http:', 'https:'].includes(parsedUrl.protocol)) {
+                                item.appendChild(document.createTextNode(' '));
+                                const link = document.createElement('a');
+                                link.href = parsedUrl.href;
+                                link.target = '_blank';
+                                link.rel = 'noopener noreferrer';
+                                link.textContent = '查看来源';
+                                item.appendChild(link);
+                            }
+                        } catch (error) {
+                            console.warn('忽略无效来源链接');
+                        }
+                    }
+                    list.appendChild(item);
+                });
+                referenceBox.appendChild(list);
+                div.appendChild(referenceBox);
+            }
+
             if (isLoading) div.id = 'loading-msg';
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight; // 自动滚动到底部

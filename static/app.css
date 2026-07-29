@@ -1760,6 +1760,35 @@ button:hover {
     align-self: flex-start;
 }
 
+.rag-upload-panel {
+    margin-bottom: 20px;
+}
+
+.rag-upload-form {
+    margin-top: 20px;
+    display: grid;
+    gap: 14px;
+}
+
+.rag-upload-form label {
+    font-weight: 800;
+}
+
+.rag-upload-form input,
+.rag-upload-form select {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--line);
+    border-radius: 13px;
+    color: var(--text);
+    background: #fff;
+    font: inherit;
+}
+
+.rag-upload-form input[type="file"] {
+    padding: 11px;
+}
+
 .back-row {
     margin-bottom: 18px;
 }

@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import os
 from pathlib import Path
+import hashlib
 import json
 import re
 import secrets
@@ -58,10 +59,16 @@ from database import (
     save_assessment,
     set_knowledge_favorite,
     create_knowledge_article,
+    create_knowledge_document,
+    delete_knowledge_document,
+    get_knowledge_document,
+    knowledge_document_hash_exists,
+    list_knowledge_documents,
     review_knowledge_article,
     submit_knowledge_article,
     unbind_elder,
     update_knowledge_article,
+    update_knowledge_document_status,
     update_last_login,
     update_user_active,
     update_user_password,
@@ -78,6 +85,11 @@ from questions import (
 from tencent_asr import TencentASRError, recognize_pcm
 from reports import build_assessment_report
 from idiom_game import hints_for, new_game_state, play_turn
+from rag import (
+    generate_knowledge_answer,
+    is_casual_conversation,
+    sync_knowledge_chunks,
+)
 
 app = Flask(__name__)
 load_dotenv()
@@ -373,6 +385,43 @@ def can_read_knowledge_article(article):
         article["status"] == "published"
         and article["audience"] in {"all", g.current_user["account_type"]}
     )
+
+
+def extract_uploaded_knowledge(file, extension):
+    if extension in {".txt", ".md"}:
+        raw = file.read()
+        for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+            try:
+                return raw.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        raise ValueError("文本编码无法识别，请将文件另存为UTF-8后重试。")
+    if extension == ".docx":
+        try:
+            import docx
+        except ImportError as error:
+            raise ValueError("服务器尚未安装 python-docx，暂时无法解析DOCX。") from error
+        document = docx.Document(file.stream)
+        return "\n\n".join(
+            paragraph.text.strip()
+            for paragraph in document.paragraphs
+            if paragraph.text.strip()
+        )
+    if extension == ".pdf":
+        try:
+            from pypdf import PdfReader
+        except ImportError as error:
+            raise ValueError("服务器尚未安装 pypdf，暂时无法解析PDF。") from error
+        reader = PdfReader(file.stream)
+        if reader.is_encrypted:
+            raise ValueError("暂不支持加密PDF。")
+        pages = []
+        for index, page in enumerate(reader.pages, start=1):
+            text = (page.extract_text() or "").strip()
+            if text:
+                pages.append(f"第{index}页\n{text}")
+        return "\n\n".join(pages)
+    raise ValueError("只支持TXT、Markdown、DOCX和可提取文字的PDF。")
 
 
 def get_ai_reply(user_text, system_prompt):
@@ -845,6 +894,144 @@ def admin_review_knowledge(article_id):
     return render_template("knowledge_review.html", article=article)
 
 
+@app.route("/admin/rag-documents")
+@admin_required
+def admin_rag_documents():
+    selected_status = str(request.args.get("status") or "").strip()
+    if selected_status not in {"", "draft", "published", "disabled"}:
+        selected_status = ""
+    return render_template(
+        "admin_rag_documents.html",
+        documents=list_knowledge_documents(selected_status),
+        selected_status=selected_status,
+    )
+
+
+@app.route("/admin/rag-documents/upload", methods=["POST"])
+@admin_required
+def admin_upload_rag_document():
+    uploaded = request.files.get("file")
+    if uploaded is None or not uploaded.filename:
+        flash("请选择需要上传的知识文档。", "error")
+        return redirect(url_for("admin_rag_documents"))
+
+    filename = str(uploaded.filename).replace("\\", "/").split("/")[-1].strip()[:200]
+    extension = Path(filename).suffix.lower()
+    if extension not in {".txt", ".md", ".docx", ".pdf"}:
+        flash("只支持TXT、Markdown、DOCX和可提取文字的PDF。", "error")
+        return redirect(url_for("admin_rag_documents"))
+
+    audience = str(request.form.get("audience") or "all").strip()
+    if audience not in {"all", "elder", "family", "community"}:
+        flash("请选择正确的适用对象。", "error")
+        return redirect(url_for("admin_rag_documents"))
+    status = str(request.form.get("status") or "draft").strip()
+    if status not in {"draft", "published"}:
+        status = "draft"
+    source_url = str(request.form.get("source_url") or "").strip()[:500]
+    if source_url:
+        parsed = urlsplit(source_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            flash("来源链接必须是完整的HTTP或HTTPS地址。", "error")
+            return redirect(url_for("admin_rag_documents"))
+
+    try:
+        content = extract_uploaded_knowledge(uploaded, extension).strip()
+        if len(content) < 40:
+            raise ValueError("文档可提取正文过短，请检查文件内容。")
+        if len(content) > 500_000:
+            raise ValueError("文档正文超过50万字，请拆分后上传。")
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        if knowledge_document_hash_exists(digest):
+            raise ValueError("相同内容的文档已经存在，请不要重复上传。")
+
+        title = str(request.form.get("title") or Path(filename).stem).strip()[:120]
+        if not title:
+            raise ValueError("请填写文档标题。")
+        create_knowledge_document(
+            {
+                "document_id": uuid.uuid4().hex,
+                "title": title,
+                "filename": filename,
+                "content": content,
+                "category": str(
+                    request.form.get("category") or "健康教育"
+                ).strip()[:40],
+                "audience": audience,
+                "source_name": str(
+                    request.form.get("source_name") or ""
+                ).strip()[:160],
+                "source_url": source_url,
+                "content_hash": digest,
+                "status": status,
+            },
+            g.current_user["id"],
+        )
+        sync_knowledge_chunks()
+        flash(
+            "文档已发布并进入知识检索。"
+            if status == "published"
+            else "文档草稿已保存，发布前不会用于回答。",
+            "success",
+        )
+    except ValueError as error:
+        flash(str(error), "error")
+    except Exception:
+        app.logger.exception("上传RAG知识文档失败")
+        flash("文档处理失败，请检查格式后重试。", "error")
+    return redirect(url_for("admin_rag_documents"))
+
+
+@app.route(
+    "/admin/rag-documents/<document_id>/status",
+    methods=["POST"],
+)
+@admin_required
+def admin_set_rag_document_status(document_id):
+    document = get_knowledge_document(document_id)
+    if document is None:
+        abort(404)
+    status = str(request.form.get("status") or "").strip()
+    if status not in {"draft", "published", "disabled"}:
+        flash("不支持的文档状态。", "error")
+        return redirect(url_for("admin_rag_documents"))
+    update_knowledge_document_status(
+        document_id,
+        status,
+        g.current_user["id"],
+        str(request.form.get("review_notes") or "").strip()[:1000],
+    )
+    sync_knowledge_chunks()
+    flash(
+        "文档已发布并可用于知识问答。"
+        if status == "published"
+        else "文档已停止用于知识问答。",
+        "success",
+    )
+    return redirect(url_for("admin_rag_documents"))
+
+
+@app.route(
+    "/admin/rag-documents/<document_id>/delete",
+    methods=["POST"],
+)
+@admin_required
+def admin_delete_rag_document(document_id):
+    if not delete_knowledge_document(document_id):
+        abort(404)
+    sync_knowledge_chunks()
+    flash("知识文档及其检索片段已删除。", "success")
+    return redirect(url_for("admin_rag_documents"))
+
+
+@app.route("/admin/rag-documents/reindex", methods=["POST"])
+@admin_required
+def admin_reindex_rag_documents():
+    sync_knowledge_chunks()
+    flash("知识文章和已发布文档的检索索引已重新构建。", "success")
+    return redirect(url_for("admin_rag_documents"))
+
+
 @app.route("/assistant")
 @login_required
 def assistant_page():
@@ -1121,26 +1308,59 @@ def admin_reset_password(user_id):
     return render_template("reset_password.html", user=user)
 
 
-# 你原来的纯文本聊天接口（完全保持原样）
 @app.route('/chat', methods=['POST'])
 @login_required
 def chat():
-    user_input = request.json.get('message')
+    payload = request.get_json(silent=True) or {}
+    user_input = str(payload.get('message') or '').strip()
+    use_knowledge = bool(payload.get('use_knowledge', True))
 
     if not user_input:
         return jsonify({'error': '没有收到消息'}), 400
+    if len(user_input) > 2000:
+        return jsonify({'error': '单次提问不能超过2000个字。'}), 400
 
     try:
-        print("正在向 DeepSeek 提问:", user_input)
+        if use_knowledge and not is_casual_conversation(user_input):
+            ai_reply, references, urgent = generate_knowledge_answer(
+                user_input,
+                g.current_user["account_type"],
+                deepseek_client,
+                DEEPSEEK_MODEL,
+            )
+            return jsonify({
+                'reply': ai_reply,
+                'references': references,
+                'knowledge_used': bool(references),
+                'urgent': urgent,
+            })
+
         ai_reply = get_ai_reply(
             user_input,
-            "你是一个乐于助人的 AI 助手。",
+            (
+                "你是“忆路明灯”的智慧陪伴助手。"
+                "请使用温和、简短、容易理解的中文回应，适合与老年人交流。"
+                "不要声称自己能够进行医疗诊断。"
+            ),
         )
-        return jsonify({'reply': ai_reply})
+        return jsonify({
+            'reply': ai_reply,
+            'references': [],
+            'knowledge_used': False,
+            'urgent': False,
+            'conversation_mode': (
+                'casual'
+                if use_knowledge and is_casual_conversation(user_input)
+                else 'companion'
+            ),
+        })
 
-    except Exception as e:
-        print("出错啦:", e)
-        return jsonify({'reply': "抱歉，我出了一点小差错，请稍后再试。"}), 500
+    except Exception:
+        app.logger.exception("聊天请求处理失败")
+        return jsonify({
+            'error': "服务暂时无法回答，请稍后再试。",
+            'references': [],
+        }), 500
 
 
 @app.route('/speech/recognize', methods=['POST'])

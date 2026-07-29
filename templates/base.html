@@ -33,6 +33,7 @@
                     {% if current_user['role'] == 'admin' %}
                         <a href="{{ url_for('admin_users') }}">用户管理</a>
                         <a href="{{ url_for('admin_knowledge') }}">知识管理</a>
+                        <a href="{{ url_for('admin_rag_documents') }}">RAG文档</a>
                     {% endif %}
                     <form class="nav-form" action="{{ url_for('logout') }}" method="post">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">

@@ -128,6 +128,51 @@ CREATE TABLE IF NOT EXISTS knowledge_favorites (
     FOREIGN KEY (article_id) REFERENCES knowledge_articles(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    content TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '健康教育',
+    audience TEXT NOT NULL DEFAULT 'all'
+        CHECK (audience IN ('all', 'elder', 'family', 'community')),
+    source_name TEXT NOT NULL DEFAULT '',
+    source_url TEXT NOT NULL DEFAULT '',
+    content_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'published', 'disabled')),
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    uploaded_by INTEGER NOT NULL,
+    reviewer_id INTEGER,
+    review_notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    published_at TEXT,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT,
+    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_status
+ON knowledge_documents(status, audience, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_type TEXT NOT NULL
+        CHECK (source_type IN ('article', 'document')),
+    source_id INTEGER NOT NULL,
+    source_hash TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    section_label TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    vector_id TEXT NOT NULL UNIQUE,
+    indexed_at TEXT NOT NULL,
+    UNIQUE(source_type, source_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source
+ON knowledge_chunks(source_type, source_id, chunk_index);
+
 CREATE TABLE IF NOT EXISTS app_metadata (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -903,6 +948,153 @@ def list_recommended_knowledge(account_type, user_id, domains, limit=4):
         """,
         parameters,
     ).fetchall()
+
+
+def create_knowledge_document(data, uploaded_by):
+    now = utc_now()
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        INSERT INTO knowledge_documents (
+            document_id, title, filename, content, category, audience,
+            source_name, source_url, content_hash, status, uploaded_by,
+            reviewer_id, created_at, updated_at, published_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            data["document_id"],
+            data["title"],
+            data["filename"],
+            data["content"],
+            data["category"],
+            data["audience"],
+            data["source_name"],
+            data["source_url"],
+            data["content_hash"],
+            data["status"],
+            uploaded_by,
+            uploaded_by if data["status"] == "published" else None,
+            now,
+            now,
+            now if data["status"] == "published" else None,
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_knowledge_document(document_id):
+    return get_db().execute(
+        """
+        SELECT
+            d.*,
+            uploader.display_name AS uploaded_by_name,
+            reviewer.display_name AS reviewer_name
+        FROM knowledge_documents AS d
+        JOIN users AS uploader ON uploader.id = d.uploaded_by
+        LEFT JOIN users AS reviewer ON reviewer.id = d.reviewer_id
+        WHERE d.document_id = ?
+        """,
+        (document_id,),
+    ).fetchone()
+
+
+def list_knowledge_documents(status=""):
+    parameters = []
+    condition = ""
+    if status:
+        condition = "WHERE d.status = ?"
+        parameters.append(status)
+    return get_db().execute(
+        f"""
+        SELECT
+            d.*,
+            uploader.display_name AS uploaded_by_name,
+            reviewer.display_name AS reviewer_name
+        FROM knowledge_documents AS d
+        JOIN users AS uploader ON uploader.id = d.uploaded_by
+        LEFT JOIN users AS reviewer ON reviewer.id = d.reviewer_id
+        {condition}
+        ORDER BY d.updated_at DESC
+        """,
+        parameters,
+    ).fetchall()
+
+
+def update_knowledge_document_status(
+    document_id,
+    status,
+    reviewer_id,
+    review_notes="",
+):
+    if status not in {"draft", "published", "disabled"}:
+        raise ValueError("不支持的文档状态")
+    now = utc_now()
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        UPDATE knowledge_documents
+        SET status = ?, reviewer_id = ?, review_notes = ?,
+            updated_at = ?, published_at = ?
+        WHERE document_id = ?
+        """,
+        (
+            status,
+            reviewer_id,
+            review_notes,
+            now,
+            now if status == "published" else None,
+            document_id,
+        ),
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def update_knowledge_document_chunk_count(document_id, chunk_count):
+    connection = get_db()
+    connection.execute(
+        """
+        UPDATE knowledge_documents
+        SET chunk_count = ?, updated_at = updated_at
+        WHERE document_id = ?
+        """,
+        (chunk_count, document_id),
+    )
+    connection.commit()
+
+
+def delete_knowledge_document(document_id):
+    connection = get_db()
+    document = connection.execute(
+        "SELECT id FROM knowledge_documents WHERE document_id = ?",
+        (document_id,),
+    ).fetchone()
+    if document is None:
+        return False
+    connection.execute(
+        """
+        DELETE FROM knowledge_chunks
+        WHERE source_type = 'document' AND source_id = ?
+        """,
+        (document["id"],),
+    )
+    connection.execute(
+        "DELETE FROM knowledge_documents WHERE id = ?",
+        (document["id"],),
+    )
+    connection.commit()
+    return True
+
+
+def knowledge_document_hash_exists(content_hash):
+    return get_db().execute(
+        """
+        SELECT 1 FROM knowledge_documents
+        WHERE content_hash = ?
+        """,
+        (content_hash,),
+    ).fetchone() is not None
 
 
 def count_idioms():
