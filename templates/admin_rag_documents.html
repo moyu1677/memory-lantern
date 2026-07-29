@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}RAG知识文档 · 忆路明灯{% endblock %}
+
+{% block content %}
+<header class="page-heading heading-with-action">
+    <div>
+        <h1>RAG知识文档</h1>
+        <p>上传可信资料，只有“已发布”文档才会用于知识库回答。现有已发布健康文章会自动参与检索。</p>
+    </div>
+    <form action="{{ url_for('admin_reindex_rag_documents') }}" method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-muted" type="submit">重新构建检索索引</button>
+    </form>
+</header>
+
+<section class="knowledge-notice" role="note">
+    <span aria-hidden="true">🛡️</span>
+    <p>
+        <strong>上传要求：</strong>
+        只上传来源可靠、允许使用且不含老人身份信息的健康教育资料。
+        不要上传病历、联系方式、身份证信息、原始录音或未经授权的版权材料。
+    </p>
+</section>
+
+<section class="panel rag-upload-panel">
+    <div class="section-title-row">
+        <span class="report-section-icon" aria-hidden="true">📄</span>
+        <div>
+            <h2>上传可信文档</h2>
+            <p>支持TXT、Markdown、DOCX和可提取文字的PDF，最大10MB。</p>
+        </div>
+    </div>
+    <form class="rag-upload-form" action="{{ url_for('admin_upload_rag_document') }}"
+        method="post" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+        <div class="knowledge-form-grid">
+            <div>
+                <label for="rag-title">文档标题</label>
+                <input id="rag-title" name="title" maxlength="120"
+                    placeholder="不填时使用文件名">
+            </div>
+            <div>
+                <label for="rag-file">选择文件</label>
+                <input id="rag-file" name="file" type="file"
+                    accept=".txt,.md,.docx,.pdf" required>
+            </div>
+            <div>
+                <label for="rag-category">内容分类</label>
+                <input id="rag-category" name="category" maxlength="40"
+                    value="健康教育">
+            </div>
+            <div>
+                <label for="rag-audience">适用对象</label>
+                <select id="rag-audience" name="audience">
+                    <option value="all">所有用户</option>
+                    <option value="elder">老人端</option>
+                    <option value="family">家属端</option>
+                    <option value="community">社区端</option>
+                </select>
+            </div>
+            <div>
+                <label for="rag-source-name">来源机构</label>
+                <input id="rag-source-name" name="source_name" maxlength="160"
+                    placeholder="例如：世界卫生组织">
+            </div>
+            <div>
+                <label for="rag-source-url">来源链接</label>
+                <input id="rag-source-url" name="source_url" type="url"
+                    maxlength="500" placeholder="https://...">
+            </div>
+        </div>
+
+        <label for="rag-status">上传后状态</label>
+        <select id="rag-status" name="status">
+            <option value="draft">先保存为草稿</option>
+            <option value="published">审核无误，直接发布</option>
+        </select>
+        <button class="button" type="submit">上传并处理文档</button>
+    </form>
+</section>
+
+<nav class="status-filter" aria-label="RAG文档状态筛选">
+    {% for value, label in [('', '全部'), ('published', '已发布'), ('draft', '草稿'), ('disabled', '已停用')] %}
+        <a class="{% if selected_status == value %}active{% endif %}"
+            href="{{ url_for('admin_rag_documents', status=value) }}">{{ label }}</a>
+    {% endfor %}
+</nav>
+
+<section class="panel table-panel">
+    <table class="responsive-table">
+        <thead>
+            <tr>
+                <th>文档</th>
+                <th>适用对象</th>
+                <th>索引</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for document in documents %}
+                <tr>
+                    <td data-label="文档">
+                        <strong>{{ document['title'] }}</strong><br>
+                        <span class="field-help">
+                            {{ document['filename'] }} ·
+                            {{ document['source_name'] or '未填写来源机构' }}
+                        </span>
+                        {% if document['source_url'] %}
+                            <br><a href="{{ document['source_url'] }}" target="_blank"
+                                rel="noopener noreferrer">核验来源</a>
+                        {% endif %}
+                    </td>
+                    <td data-label="适用对象">
+                        {{ document['audience'] | knowledge_audience_name }}
+                    </td>
+                    <td data-label="索引">{{ document['chunk_count'] }} 个片段</td>
+                    <td data-label="状态">
+                        <span class="status status-{{ document['status'] }}">
+                            {{ document['status'] | knowledge_status_name }}
+                        </span>
+                    </td>
+                    <td data-label="操作">
+                        <div class="table-actions">
+                            {% if document['status'] != 'published' %}
+                                <form action="{{ url_for('admin_set_rag_document_status', document_id=document['document_id']) }}"
+                                    method="post">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="published">
+                                    <button class="button button-small" type="submit">发布</button>
+                                </form>
+                            {% else %}
+                                <form action="{{ url_for('admin_set_rag_document_status', document_id=document['document_id']) }}"
+                                    method="post">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="status" value="disabled">
+                                    <button class="button button-small button-muted" type="submit">停用</button>
+                                </form>
+                            {% endif %}
+                            <form action="{{ url_for('admin_delete_rag_document', document_id=document['document_id']) }}"
+                                method="post" onsubmit="return confirm('确定永久删除该文档和检索片段吗？');">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <button class="button button-small button-danger" type="submit">删除</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5">还没有上传RAG知识文档。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

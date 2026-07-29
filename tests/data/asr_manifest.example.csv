@@ -1,0 +1,6 @@
+sample_id,language,environment,audio_path,reference
+C-Q-001,cantonese,quiet,audio/cantonese/quiet_001.webm,今日係星期三
+C-N-001,cantonese,noise,audio/cantonese/noise_001.webm,我哋一齐去散步
+S-Q-001,chaoshan,quiet,audio/chaoshan/quiet_001.webm,今天天气真好
+S-N-001,chaoshan,noise,audio/chaoshan/noise_001.webm,食饱了去外面行行
+
