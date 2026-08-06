@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     {% block head %}{% endblock %}
 </head>
-<body class="role-{{ current_user['account_type'] if current_user else 'public' }}">
+<body class="role-{{ current_user['account_type'] if current_user else 'public' }} {% block body_class %}{% endblock %}">
     <header class="site-header">
         <div class="site-header-inner">
             <a class="brand" href="{{ url_for('dashboard') if current_user else url_for('login') }}">

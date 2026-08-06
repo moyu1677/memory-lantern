@@ -1,196 +1,291 @@
 {% extends "base.html" %}
 {% block title %}功能首页 · 忆路明灯{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+{% block shell_class %}dashboard-shell{% endblock %}
 
 {% block content %}
-<section class="welcome-panel">
-    <span class="role-badge role-badge-light">{{ current_user['account_type'] | account_type_name }}</span>
-    <h1>{{ current_user['display_name'] }}，您好！</h1>
-    {% if current_user['account_type'] == 'family' %}
-        <p>这里是家属关怀空间。您可以绑定老人、查看测试报告，并与社区工作人员留言沟通。</p>
-    {% elif current_user['account_type'] == 'community' %}
-        <p>这里是社区服务空间。您可以绑定服务老人、查看测试报告，并向共同绑定的家属留言。</p>
-    {% else %}
-        <p>您可以进行认知测试、语音聊天，或者查看以前的测试结果。</p>
-    {% endif %}
-</section>
+<div class="dashboard-workspace">
+    <aside class="dashboard-rail" aria-label="首页快捷导航">
+        <a class="dashboard-rail-brand" href="{{ url_for('dashboard') }}" aria-label="忆路明灯首页">
+            <span aria-hidden="true">💡</span>
+        </a>
 
-<section class="homepage-disclaimer" role="note">
-    <span aria-hidden="true">ℹ️</span>
-    <div>
-        <strong>本产品不是医疗器械或医疗用品</strong>
-        <p>测试与报告仅供健康管理参考，不能诊断认知障碍，也不能替代医生面诊、检查或治疗。</p>
-    </div>
-</section>
-
-{% if current_user['account_type'] in ['family', 'community'] %}
-    <div class="care-dashboard-grid">
-        <section class="panel bind-panel">
-            <div class="section-title-row">
-                <span class="report-section-icon" aria-hidden="true">🔗</span>
-                <div>
-                    <h2>绑定老人</h2>
-                    <p>请向老人本人或其授权照护者索取绑定码。</p>
-                </div>
-            </div>
-            <form class="bind-form" action="{{ url_for('add_binding') }}" method="post">
-                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                <label class="sr-only" for="binding_code">老人绑定码</label>
-                <input id="binding_code" name="binding_code" maxlength="11"
-                    required placeholder="例如：YL-ABCD2345">
-                <button type="submit">确认绑定</button>
-            </form>
-            <p class="field-help">绑定后可以查看该老人的测试分数和专属报告。解除绑定后将立即失去访问权限。</p>
-        </section>
-
-        <section class="panel quick-message-card">
-            <div class="section-title-row">
-                <span class="report-section-icon" aria-hidden="true">✉️</span>
-                <div>
-                    <h2>照护留言</h2>
-                    <p>当前有 {{ contacts | length }} 位可联系的家属或社区人员。</p>
-                </div>
-            </div>
-            <a class="button button-wide" href="{{ url_for('message_center') }}">
-                进入留言中心{% if unread_message_count %} · {{ unread_message_count }}条未读{% endif %}
+        <nav class="dashboard-rail-nav">
+            <a class="dashboard-rail-link is-active" href="{{ url_for('dashboard') }}" title="首页">
+                <span aria-hidden="true">⌂</span><small>首页</small>
             </a>
-        </section>
+            <a class="dashboard-rail-link" href="{{ url_for('knowledge_center') }}" title="健康知识">
+                <span aria-hidden="true">📖</span><small>知识</small>
+            </a>
+            {% if current_user['account_type'] in ['elder', 'admin'] %}
+                <a class="dashboard-rail-link" href="{{ url_for('assistant_page') }}" title="智慧陪伴">
+                    <span aria-hidden="true">💬</span><small>陪伴</small>
+                </a>
+                <a class="dashboard-rail-link" href="{{ url_for('idiom_game_page') }}" title="成语接龙">
+                    <span aria-hidden="true">🧩</span><small>游戏</small>
+                </a>
+                <a class="dashboard-rail-link" href="{{ url_for('history') }}" title="历史结果">
+                    <span aria-hidden="true">▥</span><small>历史</small>
+                </a>
+            {% else %}
+                <a class="dashboard-rail-link" href="{{ url_for('message_center') }}" title="照护留言">
+                    <span aria-hidden="true">✉</span><small>留言</small>
+                    {% if unread_message_count %}<b>{{ unread_message_count }}</b>{% endif %}
+                </a>
+            {% endif %}
+            {% if current_user['role'] == 'admin' %}
+                <a class="dashboard-rail-link" href="{{ url_for('admin_users') }}" title="用户管理">
+                    <span aria-hidden="true">👥</span><small>管理</small>
+                </a>
+            {% endif %}
+        </nav>
 
-        <section class="panel quick-knowledge-card">
-            <div class="section-title-row">
-                <span class="report-section-icon" aria-hidden="true">📚</span>
-                <div>
-                    <h2>健康知识中心</h2>
-                    <p>
-                        {% if current_user['account_type'] == 'community' %}
-                            查找照护资料，也可以提交社区经验供管理员审核。
-                        {% else %}
-                            查看沟通陪伴、生活安全和家属支持建议。
-                        {% endif %}
-                    </p>
-                </div>
+        <div class="dashboard-rail-footer">
+            <div class="dashboard-mini-avatar" aria-hidden="true">
+                {{ current_user['display_name'][0] }}
             </div>
-            <a class="button button-wide" href="{{ url_for('knowledge_center') }}">进入知识中心</a>
-        </section>
-    </div>
-
-    <header class="page-heading care-heading">
-        <h2>已绑定的老人</h2>
-        <p>只展示您使用绑定码获得授权的老人。</p>
-    </header>
-
-    {% if elders %}
-        <div class="elder-card-grid">
-            {% for elder in elders %}
-                <article class="elder-card">
-                    <div class="elder-avatar" aria-hidden="true">👤</div>
-                    <div class="elder-main">
-                        <h3>{{ elder['display_name'] }}</h3>
-                        <p>
-                            已完成 {{ elder['assessment_count'] }} 次测试<br>
-                            最近测试：{{ elder['latest_assessment_at'] | local_datetime }}
-                        </p>
-                    </div>
-                    <div class="elder-actions">
-                        <a class="button" href="{{ url_for('elder_history', elder_id=elder['id']) }}">查看结果与报告</a>
-                        <form action="{{ url_for('remove_binding', elder_id=elder['id']) }}" method="post"
-                            onsubmit="return confirm('确定解除与{{ elder['display_name'] }}的绑定吗？');">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <button class="button-muted button-small" type="submit">解除绑定</button>
-                        </form>
-                    </div>
-                </article>
-            {% endfor %}
+            <form action="{{ url_for('logout') }}" method="post">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="dashboard-logout" type="submit" title="退出登录">
+                    <span aria-hidden="true">↪</span><small>退出</small>
+                </button>
+            </form>
         </div>
-    {% else %}
-        <section class="panel empty-state">
-            <div class="feature-icon" aria-hidden="true">🔗</div>
-            <h2>还没有绑定老人</h2>
-            <p>在上方输入老人端首页显示的专属绑定码即可建立关联。</p>
-        </section>
-    {% endif %}
-{% else %}
-    <div class="dashboard-stats">
-        <section class="stat-card">
-            <div class="stat-label">已经完成的测试</div>
-            <div class="stat-value">{{ assessment_count }} 次</div>
-        </section>
-        <section class="stat-card">
-            <div class="stat-label">最近一次结果</div>
-            <div class="stat-value">
-                {% if latest %}
-                    {{ latest['score'] }}/{{ latest['maximum_score'] }} 分
+    </aside>
+
+    <div class="dashboard-canvas">
+        <header class="dashboard-topbar">
+            <div class="dashboard-greeting">
+                <span class="role-badge">{{ current_user['account_type'] | account_type_name }}</span>
+                <h1>{{ current_user['display_name'] }}，您好！</h1>
+                {% if current_user['account_type'] == 'family' %}
+                    <p>今天也一起关心老人的认知表现和生活状态。</p>
+                {% elif current_user['account_type'] == 'community' %}
+                    <p>查看服务老人近况，及时与家属保持沟通。</p>
                 {% else %}
-                    暂无记录
+                    <p>慢慢来，按照自己的节奏完成今天的活动。</p>
                 {% endif %}
             </div>
-        </section>
-    </div>
-
-    {% if current_user['account_type'] == 'elder' %}
-        <section class="binding-code-card">
-            <div>
-                <span class="stat-label">我的专属绑定码</span>
-                <strong>{{ current_user['binding_code'] }}</strong>
-                <p>仅向您信任的家属或社区工作人员提供。对方绑定后可以查看您的测试结果。</p>
+            <div class="dashboard-top-actions">
+                <a class="dashboard-help-link" href="{{ url_for('knowledge_center') }}">
+                    <span aria-hidden="true">📚</span> 健康知识
+                </a>
+                <div class="dashboard-profile-pill">
+                    <span aria-hidden="true">👤</span>
+                    <div><strong>{{ current_user['display_name'] }}</strong><small>当前已登录</small></div>
+                </div>
             </div>
-            <span class="binding-lock" aria-hidden="true">🔐</span>
+        </header>
+
+        <section class="homepage-disclaimer dashboard-disclaimer" role="note">
+            <span aria-hidden="true">ℹ️</span>
+            <div>
+                <strong>健康提示</strong>
+                <p>本产品不是医疗器械，测试与报告仅供健康管理参考，不能替代医生诊断。</p>
+            </div>
         </section>
-        {% if caregivers %}
-            <section class="panel bound-viewers">
-                <h2>目前可以查看我结果的人员</h2>
-                <div class="viewer-chips">
-                    {% for person in caregivers %}
-                        <span>{{ person['display_name'] }} · {{ person['account_type'] | account_type_name }}</span>
+
+        {% if current_user['account_type'] in ['family', 'community'] %}
+            <div class="care-dashboard-grid dashboard-care-grid">
+                <section class="panel bind-panel dashboard-care-card dashboard-care-primary">
+                    <div class="section-title-row">
+                        <span class="report-section-icon" aria-hidden="true">🔗</span>
+                        <div>
+                            <span class="dashboard-eyebrow">授权管理</span>
+                            <h2>绑定老人</h2>
+                            <p>输入老人本人提供的专属绑定码。</p>
+                        </div>
+                    </div>
+                    <form class="bind-form" action="{{ url_for('add_binding') }}" method="post">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <label class="sr-only" for="binding_code">老人绑定码</label>
+                        <input id="binding_code" name="binding_code" maxlength="11"
+                            required placeholder="例如：YL-ABCD2345">
+                        <button type="submit">确认绑定</button>
+                    </form>
+                    <p class="field-help">解除绑定后将立即失去该老人的结果访问权限。</p>
+                </section>
+
+                <section class="panel quick-message-card dashboard-care-card">
+                    <div class="section-title-row">
+                        <span class="report-section-icon" aria-hidden="true">✉️</span>
+                        <div>
+                            <span class="dashboard-eyebrow">协同照护</span>
+                            <h2>照护留言</h2>
+                            <p>当前有 {{ contacts | length }} 位可联系人员。</p>
+                        </div>
+                    </div>
+                    <a class="button button-wide" href="{{ url_for('message_center') }}">
+                        进入留言中心{% if unread_message_count %} · {{ unread_message_count }}条未读{% endif %}
+                    </a>
+                </section>
+
+                <section class="panel quick-knowledge-card dashboard-care-card">
+                    <div class="section-title-row">
+                        <span class="report-section-icon" aria-hidden="true">📚</span>
+                        <div>
+                            <span class="dashboard-eyebrow">照护支持</span>
+                            <h2>健康知识中心</h2>
+                            <p>查看沟通陪伴、生活安全和家庭支持建议。</p>
+                        </div>
+                    </div>
+                    <a class="button button-wide" href="{{ url_for('knowledge_center') }}">进入知识中心</a>
+                </section>
+            </div>
+
+            <header class="dashboard-section-heading">
+                <div>
+                    <span class="dashboard-eyebrow">授权名单</span>
+                    <h2>已绑定的老人</h2>
+                </div>
+                <p>只展示已通过绑定码获得授权的老人。</p>
+            </header>
+
+            {% if elders %}
+                <div class="elder-card-grid">
+                    {% for elder in elders %}
+                        <article class="elder-card">
+                            <div class="elder-avatar" aria-hidden="true">{{ elder['display_name'][0] }}</div>
+                            <div class="elder-main">
+                                <h3>{{ elder['display_name'] }}</h3>
+                                <p>已完成 {{ elder['assessment_count'] }} 次测试 · 最近测试：{{ elder['latest_assessment_at'] | local_datetime }}</p>
+                            </div>
+                            <div class="elder-actions">
+                                <a class="button" href="{{ url_for('elder_history', elder_id=elder['id']) }}">查看结果与报告</a>
+                                <form action="{{ url_for('remove_binding', elder_id=elder['id']) }}" method="post"
+                                    onsubmit="return confirm('确定解除与{{ elder['display_name'] }}的绑定吗？');">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <button class="button-muted button-small" type="submit">解除绑定</button>
+                                </form>
+                            </div>
+                        </article>
                     {% endfor %}
                 </div>
-            </section>
-        {% endif %}
-    {% endif %}
+            {% else %}
+                <section class="panel empty-state dashboard-empty-state">
+                    <div class="feature-icon" aria-hidden="true">🔗</div>
+                    <h2>还没有绑定老人</h2>
+                    <p>在上方输入老人端首页显示的专属绑定码即可建立关联。</p>
+                </section>
+            {% endif %}
+        {% else %}
+            {% set latest_percent = (((latest['score'] / latest['maximum_score']) * 100) | round | int) if latest and latest['maximum_score'] else 0 %}
+            <div class="dashboard-overview-grid">
+                <section class="dashboard-focus-card">
+                    <div class="dashboard-focus-copy">
+                        <span class="dashboard-eyebrow">今日认知活动</span>
+                        <h2>从一次轻松的练习开始</h2>
+                        <p>题目会从不同能力维度随机抽取，您可以打字，也可以使用普通话、粤语或潮汕话回答。</p>
+                        <a class="button dashboard-primary-action" href="{{ url_for('assistant_page') }}">开始认知表现测试</a>
+                    </div>
+                    <div class="dashboard-bubble-map" aria-label="测试概况">
+                        <div class="metric-bubble metric-bubble-main">
+                            <strong>{% if latest %}{{ latest_percent }}%{% else %}未开始{% endif %}</strong>
+                            <span>最近表现</span>
+                        </div>
+                        <div class="metric-bubble metric-bubble-small">
+                            <strong>{{ assessment_count }}</strong><span>完成次数</span>
+                        </div>
+                        <div class="metric-bubble metric-bubble-language">
+                            <strong>3种</strong><span>语言输入</span>
+                        </div>
+                    </div>
+                </section>
 
-    <div class="feature-grid">
-        <section class="feature-card">
-            <div class="feature-icon" aria-hidden="true">🧠</div>
-            <h2>认知表现测试</h2>
-            <p>每次从记忆、定向、注意力等题库中随机抽取10题，支持普通话、粤语和潮汕话。</p>
-            <a class="button button-wide" href="{{ url_for('assistant_page') }}">开始测试</a>
-        </section>
+                <aside class="dashboard-plan-card">
+                    <div class="dashboard-plan-heading">
+                        <div><span class="dashboard-eyebrow">温和安排</span><h2>今日建议</h2></div>
+                        <span class="dashboard-plan-mark" aria-hidden="true">✓</span>
+                    </div>
+                    <ol class="dashboard-plan-list">
+                        <li><span>1</span><div><strong>认知练习</strong><small>选择精神较好的时间开始</small></div></li>
+                        <li><span>2</span><div><strong>轻松聊天</strong><small>说说今天发生的事情</small></div></li>
+                        <li><span>3</span><div><strong>休息活动</strong><small>感觉疲倦时随时停下来</small></div></li>
+                    </ol>
+                    {% if latest %}
+                        <a class="dashboard-plan-link" href="{{ url_for('history') }}">查看最近报告 <span aria-hidden="true">→</span></a>
+                    {% else %}
+                        <a class="dashboard-plan-link" href="{{ url_for('assistant_page') }}">完成第一次测试 <span aria-hidden="true">→</span></a>
+                    {% endif %}
+                </aside>
+            </div>
 
-        <section class="feature-card">
-            <div class="feature-icon" aria-hidden="true">💬</div>
-            <h2>智慧陪伴聊天</h2>
-            <p>随时说说话、聊聊天，也可以使用大按钮进行语音输入。</p>
-            <a class="button button-blue button-wide" href="{{ url_for('assistant_page') }}">进入陪伴空间</a>
-        </section>
+            <div class="dashboard-lower-grid">
+                <section class="dashboard-progress-card">
+                    <div>
+                        <span class="dashboard-eyebrow">我的记录</span>
+                        <h2>{% if latest %}最近测试{% else %}等待第一次记录{% endif %}</h2>
+                        <p>
+                            {% if latest %}
+                                {{ latest['created_at'] | local_datetime }} 完成，结果仅供健康管理参考。
+                            {% else %}
+                                完成测试后，这里会显示您的最近记录。
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="dashboard-score-ring" style="--score-progress: {{ latest_percent }}%;">
+                        <div><strong>{% if latest %}{{ latest['score'] }}{% else %}—{% endif %}</strong><span>{% if latest %}/ {{ latest['maximum_score'] }} 分{% else %}暂无分数{% endif %}</span></div>
+                    </div>
+                    <a href="{{ url_for('history') }}">查看全部历史</a>
+                </section>
 
-        <section class="feature-card">
-            <div class="feature-icon" aria-hidden="true">📊</div>
-            <h2>历史测试结果</h2>
-            <p>按时间查看以往测试分数、能力维度和专属建议报告。</p>
-            <a class="button button-wide" href="{{ url_for('history') }}">查看历史</a>
-        </section>
+                <section class="dashboard-activity-card">
+                    <header>
+                        <div><span class="dashboard-eyebrow">更多活动</span><h2>选择您想做的事情</h2></div>
+                        <span>按照自己的节奏</span>
+                    </header>
+                    <div class="dashboard-action-list">
+                        <a class="dashboard-action-row" href="{{ url_for('assistant_page') }}">
+                            <span class="dashboard-action-icon action-blue" aria-hidden="true">💬</span>
+                            <span><strong>智慧陪伴聊天</strong><small>说说话，也可以使用大按钮语音输入</small></span>
+                            <b aria-hidden="true">→</b>
+                        </a>
+                        <a class="dashboard-action-row" href="{{ url_for('idiom_game_page') }}">
+                            <span class="dashboard-action-icon action-purple" aria-hidden="true">🧩</span>
+                            <span><strong>成语接龙小游戏</strong><small>轻松练习语言、注意力和联想能力</small></span>
+                            <b aria-hidden="true">→</b>
+                        </a>
+                        <a class="dashboard-action-row" href="{{ url_for('knowledge_center') }}">
+                            <span class="dashboard-action-icon action-green" aria-hidden="true">📚</span>
+                            <span><strong>健康知识中心</strong><small>阅读记忆练习、生活安全和健康知识</small></span>
+                            <b aria-hidden="true">→</b>
+                        </a>
+                        <a class="dashboard-action-row" href="{{ url_for('history') }}">
+                            <span class="dashboard-action-icon action-orange" aria-hidden="true">📊</span>
+                            <span><strong>历史测试结果</strong><small>查看以往分数、能力维度和专属报告</small></span>
+                            <b aria-hidden="true">→</b>
+                        </a>
+                    </div>
+                </section>
+            </div>
 
-        <section class="feature-card game-feature-card">
-            <div class="feature-icon" aria-hidden="true">🧩</div>
-            <h2>成语接龙小游戏</h2>
-            <p>和电脑轮流接成语，支持打字、普通话、粤语和潮汕话输入，想不起来还可以看提示。</p>
-            <a class="button button-wide" href="{{ url_for('idiom_game_page') }}">开始成语接龙</a>
-        </section>
+            {% if current_user['account_type'] == 'elder' %}
+                <section class="binding-code-card dashboard-binding-card">
+                    <div class="dashboard-binding-icon" aria-hidden="true">🔐</div>
+                    <div>
+                        <span class="stat-label">我的专属绑定码</span>
+                        <strong>{{ current_user['binding_code'] }}</strong>
+                        <p>仅向您信任的家属或社区工作人员提供。</p>
+                    </div>
+                    {% if caregivers %}
+                        <div class="viewer-chips dashboard-viewers">
+                            {% for person in caregivers %}
+                                <span>{{ person['display_name'] }} · {{ person['account_type'] | account_type_name }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <span class="dashboard-unbound">目前尚未绑定照护人员</span>
+                    {% endif %}
+                </section>
+            {% endif %}
 
-        <section class="feature-card">
-            <div class="feature-icon" aria-hidden="true">📚</div>
-            <h2>健康知识中心</h2>
-            <p>用大字阅读记忆练习、生活安全和健康生活知识，还可以朗读全文。</p>
-            <a class="button button-wide" href="{{ url_for('knowledge_center') }}">阅读健康知识</a>
-        </section>
-
-        {% if current_user['role'] == 'admin' %}
-            <section class="feature-card">
-                <div class="feature-icon" aria-hidden="true">👥</div>
-                <h2>后台用户管理</h2>
-                <p>查看账户类型和测试次数，管理账号状态或协助重置密码。</p>
-                <a class="button button-muted button-wide" href="{{ url_for('admin_users') }}">管理用户</a>
-            </section>
+            {% if current_user['role'] == 'admin' %}
+                <section class="panel dashboard-admin-card">
+                    <div><span class="dashboard-eyebrow">管理功能</span><h2>后台用户管理</h2><p>查看账户类型、测试次数和知识库状态。</p></div>
+                    <a class="button button-muted" href="{{ url_for('admin_users') }}">进入管理后台</a>
+                </section>
+            {% endif %}
         {% endif %}
     </div>
-{% endif %}
+</div>
 {% endblock %}
