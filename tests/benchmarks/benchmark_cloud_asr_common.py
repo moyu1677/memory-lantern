@@ -1,4 +1,4 @@
-"""粤语和潮汕话腾讯云ASR真实性能测试公共实现。"""
+"""普通话、粤语和潮汕话腾讯云 ASR 真实性能测试公共实现。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from time import perf_counter
 from benchmark_common import (
     character_error_rate,
     login_session,
+    raw_character_error_rate,
     utc_timestamp,
     write_csv,
 )
@@ -76,6 +77,9 @@ def run_language_benchmark(language, output_filename, args):
             "sample_id": item["sample_id"],
             "language": language,
             "environment": item["environment"],
+            "category": item.get("category", ""),
+            "source": item.get("source", ""),
+            "duration_s": item.get("duration_s", ""),
             "audio_path": str(audio_path),
             "reference": reference,
             "prediction": prediction,
@@ -85,6 +89,26 @@ def run_language_benchmark(language, output_filename, args):
             "cer": (
                 round(character_error_rate(reference, prediction), 6)
                 if success else ""
+            ),
+            "raw_cer": (
+                round(raw_character_error_rate(reference, prediction), 6)
+                if success else ""
+            ),
+            "normalized_cer": (
+                round(character_error_rate(reference, prediction), 6)
+                if success else ""
+            ),
+            "audio_duration_ms": payload.get("speech_observation", {}).get(
+                "audio_duration_ms", ""
+            ),
+            "speech_duration_ms": payload.get("speech_observation", {}).get(
+                "speech_duration_ms", ""
+            ),
+            "pause_count": payload.get("speech_observation", {}).get(
+                "pause_count", ""
+            ),
+            "voiced_ratio": payload.get("speech_observation", {}).get(
+                "voiced_ratio", ""
             ),
             "error": payload.get("error", ""),
         })
@@ -101,6 +125,9 @@ def run_language_benchmark(language, output_filename, args):
             "sample_id",
             "language",
             "environment",
+            "category",
+            "source",
+            "duration_s",
             "audio_path",
             "reference",
             "prediction",
@@ -108,8 +135,13 @@ def run_language_benchmark(language, output_filename, args):
             "success",
             "latency_s",
             "cer",
+            "raw_cer",
+            "normalized_cer",
+            "audio_duration_ms",
+            "speech_duration_ms",
+            "pause_count",
+            "voiced_ratio",
             "error",
         ],
     )
     print(f"完成：{len(rows)}条真实语音请求，结果写入 {output}")
-

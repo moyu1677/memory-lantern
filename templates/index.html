@@ -555,7 +555,7 @@
             <div class="voice-settings">
                 <div class="setting-copy">
                     <label for="speech-mode">选择说话语言</label>
-                    <small>请选择您最熟悉的语言</small>
+                    <small>测试时只保存停顿与时长统计，不保存原始录音</small>
                 </div>
                 <select id="speech-mode">
                     <option value="browser">普通话（浏览器）</option>
@@ -839,6 +839,9 @@
         let isCloudRecording = false;
         let cloudStopTimer = null;
         let activeCloudMode = 'chaoshan';
+        let browserMediaRecorder = null;
+        let browserAudioChunks = [];
+        let browserTranscript = '';
 
         const cloudSpeechModes = {
             cantonese: {
@@ -972,7 +975,82 @@
             }
         }
 
-        function toggleBrowserRecognition() {
+        async function startBrowserAudioCapture() {
+            if (
+                !isTesting ||
+                !navigator.mediaDevices ||
+                !navigator.mediaDevices.getUserMedia ||
+                !('MediaRecorder' in window)
+            ) {
+                return false;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const preferredType = ['audio/webm;codecs=opus', 'audio/webm']
+                    .find(type => MediaRecorder.isTypeSupported(type));
+                browserMediaRecorder = preferredType
+                    ? new MediaRecorder(stream, { mimeType: preferredType })
+                    : new MediaRecorder(stream);
+                browserAudioChunks = [];
+                browserMediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) browserAudioChunks.push(event.data);
+                };
+                browserMediaRecorder.start();
+                return true;
+            } catch (error) {
+                console.warn('普通话语音行为录音无法启动:', error);
+                browserMediaRecorder = null;
+                return false;
+            }
+        }
+
+        async function stopBrowserAudioCapture() {
+            const recorder = browserMediaRecorder;
+            if (!recorder) return null;
+
+            return new Promise(resolve => {
+                const finish = () => {
+                    recorder.stream.getTracks().forEach(track => track.stop());
+                    const blob = new Blob(browserAudioChunks, {
+                        type: recorder.mimeType || 'audio/webm'
+                    });
+                    browserMediaRecorder = null;
+                    browserAudioChunks = [];
+                    resolve(blob);
+                };
+                recorder.onstop = finish;
+                if (recorder.state === 'recording') {
+                    recorder.stop();
+                } else {
+                    finish();
+                }
+            });
+        }
+
+        async function analyzeBrowserAudio(audioBlob, transcript) {
+            if (!isTesting || !audioBlob || audioBlob.size === 0) return;
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'mandarin.webm');
+            formData.append('transcript', transcript);
+
+            try {
+                const response = await fetch('/speech/analyze', {
+                    method: 'POST',
+                    headers: csrfHeaders(),
+                    body: formData
+                });
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || '语音表现分析失败');
+                }
+            } catch (error) {
+                console.warn('本题语音表现未记录:', error);
+                appendMessage('本题回答会正常提交，但语音停顿统计暂时没有记录成功。', 'ai');
+            }
+        }
+
+        async function toggleBrowserRecognition() {
             const recordBtn = document.getElementById('record-btn');
 
             if (isRecognizing && speechRecognition) {
@@ -994,6 +1072,8 @@
             }
 
             let resultReceived = false;
+            browserTranscript = '';
+            await startBrowserAudioCapture();
             speechRecognition = new Recognition();
             speechRecognition.lang = 'zh-CN';
             speechRecognition.continuous = false;
@@ -1012,8 +1092,7 @@
                 if (!transcript) return;
 
                 resultReceived = true;
-                document.getElementById('user-input').value = transcript;
-                sendMessage();
+                browserTranscript = transcript;
             };
 
             speechRecognition.onerror = event => {
@@ -1031,9 +1110,14 @@
                 );
             };
 
-            speechRecognition.onend = () => {
+            speechRecognition.onend = async () => {
+                const audioBlob = await stopBrowserAudioCapture();
                 resetRecordButton();
-                if (!resultReceived) {
+                if (resultReceived && browserTranscript) {
+                    await analyzeBrowserAudio(audioBlob, browserTranscript);
+                    document.getElementById('user-input').value = browserTranscript;
+                    await sendMessage();
+                } else {
                     document.getElementById('user-input').focus();
                 }
             };
@@ -1041,6 +1125,7 @@
             try {
                 speechRecognition.start();
             } catch (error) {
+                await stopBrowserAudioCapture();
                 resetRecordButton();
                 appendMessage('语音识别无法启动，请稍后再试。', 'ai');
             }

@@ -84,6 +84,7 @@ from questions import (
 )
 from tencent_asr import TencentASRError, recognize_pcm
 from reports import build_assessment_report
+from speech_analysis import analyze_pcm_file, build_speech_summary
 from idiom_game import hints_for, new_game_state, play_turn
 from rag import (
     generate_knowledge_answer,
@@ -113,6 +114,12 @@ TENCENT_ASR_SECRET_ID = os.getenv("TENCENT_ASR_SECRET_ID")
 TENCENT_ASR_SECRET_KEY = os.getenv("TENCENT_ASR_SECRET_KEY")
 TENCENT_ASR_ENGINE = os.getenv("TENCENT_ASR_ENGINE", "16k_zh_en")
 TENCENT_ASR_ENGINES = {
+    # 普通话目前仍由产品页面的浏览器 Web Speech API 输入；此映射仅供
+    # 经登录的离线数据集基准测试复用同一条安全的服务端转写链路。
+    "mandarin": os.getenv(
+        "TENCENT_ASR_ENGINE_MANDARIN",
+        TENCENT_ASR_ENGINE,
+    ),
     "chaoshan": os.getenv(
         "TENCENT_ASR_ENGINE_CHAOSHAN",
         TENCENT_ASR_ENGINE,
@@ -123,6 +130,7 @@ TENCENT_ASR_ENGINES = {
     ),
 }
 SPEECH_LANGUAGE_LABELS = {
+    "mandarin": "普通话",
     "chaoshan": "潮汕话",
     "cantonese": "粤语",
 }
@@ -472,6 +480,38 @@ def get_test_state():
     ):
         return None
     return state
+
+
+def attach_speech_observation(observation):
+    """把服务端生成的特征绑定到当前题，原始音频不会进入测试状态。"""
+    state = get_test_state()
+    if state is None or not isinstance(observation, dict):
+        return
+    index = state["question_index"]
+    if index >= len(state["questions"]):
+        return
+    safe_observation = {
+        key: observation.get(key)
+        for key in (
+            "analysis_version",
+            "valid",
+            "quality",
+            "audio_duration_ms",
+            "speech_duration_ms",
+            "silence_duration_ms",
+            "initial_silence_ms",
+            "pause_count",
+            "pause_total_ms",
+            "pause_mean_ms",
+            "pause_max_ms",
+            "voiced_ratio",
+            "transcript_char_count",
+            "speaking_rate_cpm",
+        )
+    }
+    safe_observation["question_id"] = state["questions"][index]["id"]
+    safe_observation["language"] = state["input_language"]
+    state["pending_speech_observation"] = safe_observation
 
 
 def get_idiom_game_state():
@@ -1110,6 +1150,17 @@ def history():
     )
 
 
+def parse_speech_metrics(assessment):
+    raw_metrics = assessment["speech_metrics"]
+    if not raw_metrics:
+        return None
+    try:
+        metrics = json.loads(raw_metrics)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return metrics if isinstance(metrics, dict) else None
+
+
 @app.route("/elders/<int:elder_id>/history")
 @login_required
 def elder_history(elder_id):
@@ -1140,6 +1191,7 @@ def assessment_detail(assessment_id):
         assessment=assessment,
         domain_scores=json.loads(assessment["domain_scores"]),
         domain_maximums=domain_max_points(),
+        speech_metrics=parse_speech_metrics(assessment),
     )
 
 
@@ -1160,6 +1212,7 @@ def assessment_report(assessment_id):
         assessment=assessment,
         domain_scores=scores,
         domain_maximums=maximums,
+        speech_metrics=parse_speech_metrics(assessment),
         report=report,
         recommended_articles=list_recommended_knowledge(
             g.current_user["account_type"],
@@ -1394,25 +1447,9 @@ def recognize_speech():
             pcm_path = Path(temp_dir) / "recording.pcm"
             audio_file.save(input_path)
 
-            conversion = subprocess.run(
-                [
-                    str(FFMPEG_PATH),
-                    "-hide_banner",
-                    "-loglevel", "error",
-                    "-y",
-                    "-i", str(input_path),
-                    "-ar", "16000",
-                    "-ac", "1",
-                    "-f", "s16le",
-                    str(pcm_path),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
-            )
+            conversion = convert_audio_to_pcm(input_path, pcm_path)
             if conversion.returncode != 0 or not pcm_path.exists():
-                print("音频转码失败:", conversion.stderr)
+                app.logger.warning("音频转码失败: %s", conversion.stderr)
                 return jsonify({"error": "录音格式转换失败，请重新录音。"}), 400
 
             transcript = recognize_pcm(
@@ -1426,7 +1463,13 @@ def recognize_speech():
                 return jsonify({
                     "error": f"没有识别到清晰的{language_label}，请靠近麦克风再说一次。"
                 }), 422
-            return jsonify({"text": transcript, "language": language})
+            observation = analyze_pcm_file(pcm_path, transcript=transcript)
+            attach_speech_observation(observation)
+            return jsonify({
+                "text": transcript,
+                "language": language,
+                "speech_observation": observation,
+            })
 
     except subprocess.TimeoutExpired:
         return jsonify({"error": "录音转换超时，请缩短录音后重试。"}), 504
@@ -1436,6 +1479,57 @@ def recognize_speech():
     except Exception as exc:
         print("语音识别处理失败:", exc)
         return jsonify({"error": "语音识别处理失败，请稍后重试。"}), 500
+
+
+def convert_audio_to_pcm(input_path, pcm_path):
+    return subprocess.run(
+        [
+            str(FFMPEG_PATH),
+            "-hide_banner",
+            "-loglevel", "error",
+            "-y",
+            "-i", str(input_path),
+            "-ar", "16000",
+            "-ac", "1",
+            "-f", "s16le",
+            str(pcm_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+@app.route('/speech/analyze', methods=['POST'])
+@login_required
+def analyze_speech():
+    """分析普通话浏览器录音；只返回并保存特征，不保留音频。"""
+    audio_file = request.files.get("audio")
+    if audio_file is None or not audio_file.filename:
+        return jsonify({"error": "没有收到录音文件。"}), 400
+    if not FFMPEG_PATH.exists():
+        return jsonify({"error": "项目目录中缺少 ffmpeg.exe。"}), 500
+
+    transcript = str(request.form.get("transcript", "")).strip()
+    try:
+        with tempfile.TemporaryDirectory(prefix="memory_lantern_analysis_") as temp_dir:
+            input_path = Path(temp_dir) / "recording.webm"
+            pcm_path = Path(temp_dir) / "recording.pcm"
+            audio_file.save(input_path)
+            conversion = convert_audio_to_pcm(input_path, pcm_path)
+            if conversion.returncode != 0 or not pcm_path.exists():
+                app.logger.warning("语音行为分析转码失败: %s", conversion.stderr)
+                return jsonify({"error": "录音格式转换失败。"}), 400
+
+            observation = analyze_pcm_file(pcm_path, transcript=transcript)
+            attach_speech_observation(observation)
+            return jsonify({"speech_observation": observation})
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "录音分析超时，请缩短录音后重试。"}), 504
+    except Exception:
+        app.logger.exception("语音行为分析失败")
+        return jsonify({"error": "语音行为分析失败。"}), 500
 
 
 @app.route('/test/start', methods=['POST'])
@@ -1465,6 +1559,8 @@ def start_test():
         "input_language": input_language,
         # 只记录题号和得分，不保存老人的原始回答。
         "scored_answers": [],
+        "speech_observations": [],
+        "pending_speech_observation": None,
     }
     session["test_id"] = test_id
 
@@ -1506,6 +1602,10 @@ def answer_test():
         "earned": earned,
         "maximum": question["points"],
     })
+    pending_observation = state.pop("pending_speech_observation", None)
+    if pending_observation is not None:
+        state["speech_observations"].append(pending_observation)
+    state["pending_speech_observation"] = None
     state["question_index"] += 1
 
     question_count = len(state["questions"])
@@ -1526,6 +1626,9 @@ def answer_test():
             question_ids=[
                 question["id"] for question in state["questions"]
             ],
+            speech_metrics=build_speech_summary(
+                state.get("speech_observations", [])
+            ),
         )
         reply = format_result(state)
         test_id = session.pop("test_id", None)

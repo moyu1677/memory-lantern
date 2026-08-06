@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import re
 import statistics
+import unicodedata
 
 import requests
 
@@ -74,18 +75,30 @@ def login_session(base_url, username, password):
     return session, token
 
 
+def normalize_raw_transcript(text):
+    """只统一字符宽度并移除空白，用于保留标点差异的原始 CER。"""
+    normalized = unicodedata.normalize("NFKC", str(text or "")).casefold()
+    return "".join(character for character in normalized if not character.isspace())
+
+
 def normalize_chinese(text):
-    return re.sub(
-        r"[\s，。！？、,.!?；;：:（）()\"'“”‘’\-]",
-        "",
-        str(text or "").strip().lower(),
+    """基础规范化：统一宽度、大小写并忽略空白与标点。
+
+    这里刻意不自动改写同义词，也不把所有数字强行转换成中文数字，避免测试
+    脚本在没有人工依据时替识别系统“改对”答案。
+    """
+    normalized = normalize_raw_transcript(text).replace("〇", "零")
+    return "".join(
+        character
+        for character in normalized
+        if not unicodedata.category(character).startswith(("P", "S"))
     )
 
 
-def edit_distance(reference, prediction):
+def edit_distance(reference, prediction, normalizer=normalize_chinese):
     """返回字符级Levenshtein距离。"""
-    reference = normalize_chinese(reference)
-    prediction = normalize_chinese(prediction)
+    reference = normalizer(reference)
+    prediction = normalizer(prediction)
     previous = list(range(len(prediction) + 1))
     for row_index, reference_character in enumerate(reference, start=1):
         current = [row_index]
@@ -111,3 +124,13 @@ def character_error_rate(reference, prediction):
         raise ValueError("标准文本不能为空。")
     return edit_distance(reference, prediction) / len(normalized_reference)
 
+
+def raw_character_error_rate(reference, prediction):
+    normalized_reference = normalize_raw_transcript(reference)
+    if not normalized_reference:
+        raise ValueError("标准文本不能为空。")
+    return edit_distance(
+        reference,
+        prediction,
+        normalizer=normalize_raw_transcript,
+    ) / len(normalized_reference)

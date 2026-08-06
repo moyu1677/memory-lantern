@@ -42,6 +42,25 @@
         {% endfor %}
     </div>
 
+    {% if speech_metrics and speech_metrics['voice_answer_count'] %}
+        <div class="speech-observation-box">
+            <div class="section-title-row">
+                <span class="report-section-icon" aria-hidden="true">🎙️</span>
+                <div>
+                    <h2>语音表现观察</h2>
+                    <p>共记录 {{ speech_metrics['voice_answer_count'] }} 道语音回答，其中 {{ speech_metrics['valid_sample_count'] }} 道可用于统计。</p>
+                </div>
+            </div>
+            <div class="speech-metric-grid">
+                <div><span>平均开录后首次发声</span><strong>{{ ((speech_metrics['average_initial_silence_ms'] or 0) / 1000) | round(1) }}秒</strong></div>
+                <div><span>每题平均长停顿次数</span><strong>{{ speech_metrics['average_pause_count'] or 0 }}</strong></div>
+                <div><span>平均有效说话时长</span><strong>{{ ((speech_metrics['average_speech_duration_ms'] or 0) / 1000) | round(1) }}秒</strong></div>
+                <div><span>平均有声占比</span><strong>{{ ((speech_metrics['average_voiced_ratio'] or 0) * 100) | round | int }}%</strong></div>
+            </div>
+            <p class="speech-observation-note">这些数据只描述本次录音过程，不参与认知得分，也不能单独判断认知障碍。</p>
+        </div>
+    {% endif %}
+
     <p class="notice">{{ assessment['result_level'] }}。本结果仅反映本次任务表现，不构成医学诊断。</p>
     <a class="button button-wide" href="{{ url_for('assessment_report', assessment_id=assessment['id']) }}">
         查看本次专属建议报告

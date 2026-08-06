@@ -12,3 +12,5 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/chroma_db/
+# 公开语音数据集只保留在本机，避免误提交音频和数据集元数据。
+tests/datasets/mandarin_commonvoice/generated/

@@ -35,6 +35,49 @@
     </div>
 </section>
 
+{% if speech_metrics and speech_metrics['voice_answer_count'] %}
+<section class="report-section">
+    <div class="section-title-row">
+        <span class="report-section-icon" aria-hidden="true">🎙️</span>
+        <div>
+            <h2>语音表现观察</h2>
+            <p>根据本次语音回答的时长和停顿生成，仅供本人及照护者做后续变化对比。</p>
+        </div>
+    </div>
+    <div class="speech-metric-grid">
+        <div>
+            <span>语音回答</span>
+            <strong>{{ speech_metrics['valid_sample_count'] }}/{{ speech_metrics['voice_answer_count'] }}道可统计</strong>
+        </div>
+        <div>
+            <span>平均开录后首次发声</span>
+            <strong>{{ ((speech_metrics['average_initial_silence_ms'] or 0) / 1000) | round(1) }}秒</strong>
+        </div>
+        <div>
+            <span>每题平均长停顿次数</span>
+            <strong>{{ speech_metrics['average_pause_count'] or 0 }}</strong>
+        </div>
+        <div>
+            <span>平均长停顿总时长</span>
+            <strong>{{ ((speech_metrics['average_pause_total_ms'] or 0) / 1000) | round(1) }}秒</strong>
+        </div>
+        <div>
+            <span>平均有效说话时长</span>
+            <strong>{{ ((speech_metrics['average_speech_duration_ms'] or 0) / 1000) | round(1) }}秒</strong>
+        </div>
+        <div>
+            <span>平均有声占比</span>
+            <strong>{{ ((speech_metrics['average_voiced_ratio'] or 0) * 100) | round | int }}%</strong>
+        </div>
+    </div>
+    {% if speech_metrics['valid_sample_count'] < 3 %}
+        <p class="speech-observation-note">本次可统计语音较少，暂不适合进行前后趋势比较。</p>
+    {% else %}
+        <p class="speech-observation-note">建议以后在相近设备、环境和语言下重复测试，再观察个人变化趋势；不要与他人直接比较。</p>
+    {% endif %}
+</section>
+{% endif %}
+
 <section class="report-section">
     <div class="section-title-row">
         <span class="report-section-icon" aria-hidden="true">📊</span>
@@ -170,7 +213,7 @@
 <section class="report-section report-disclaimer">
     <h2>报告说明与建议依据</h2>
     <p>
-        本报告由固定规则根据本次得分生成，不调用大模型进行诊断。
+        本报告由固定规则根据本次得分生成，语音部分只做描述性统计，不调用模型进行诊断。
         听力、视力、疲劳、情绪、教育经历、语言差异和语音识别误差都可能影响结果。
     </p>
     <ul class="source-list">

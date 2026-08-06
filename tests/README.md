@@ -115,6 +115,53 @@ http://127.0.0.1:8765/benchmark_04_mandarin_browser.html
 
 逐条填写标准文本、样本编号和环境，点击开始识别，最后下载 CSV。
 
+## 6A. 普通话公开数据集自动测试
+
+这条路径用于做可重复的论文技术测试，不会替换产品页面的浏览器普通话输入。
+初次实验建议使用体积较小的 Common Voice 26.0 Beijing Chinese 子集：
+
+```text
+https://mozilladatacollective.com/datasets/cmruwsbag00c8md07lk1n7i1e
+```
+
+在 Mozilla Data Collective 登录、阅读并接受许可后下载并解压。不要把下载的
+音频提交到 Git，也不得尝试识别录音者身份。然后在项目根目录执行：
+
+```powershell
+python tests/datasets/prepare_mandarin_commonvoice.py `
+  --dataset-root "D:\datasets\common-voice-beijing" `
+  --count 100 `
+  --seed 20260806
+```
+
+脚本会固定抽取 100 条短句、中句、长句及数字/日期句，并统一转换为 16 kHz
+单声道 WAV。输出位于：
+
+```text
+tests/datasets/mandarin_commonvoice/generated/mandarin_manifest.csv
+tests/datasets/mandarin_commonvoice/generated/dataset_summary.json
+tests/datasets/mandarin_commonvoice/generated/audio/
+```
+
+确保 `.env` 已配置腾讯云语音识别、项目已启动，并准备一个老人端测试账号，然后
+执行真实接口测试：
+
+```powershell
+python tests/benchmarks/benchmark_11_mandarin_dataset.py `
+  --base-url http://127.0.0.1:5000 `
+  --username 论文测试账号 `
+  --password Test12345 `
+  --manifest tests/datasets/mandarin_commonvoice/generated/mandarin_manifest.csv
+
+python tests/benchmarks/benchmark_12_summarize_mandarin_dataset.py
+```
+
+生成的 CSV 包含原始 CER、基础规范化 CER、端到端时延以及音频时长、停顿数等
+观测字段；汇总脚本会生成 JSON 和 Markdown。该命令真实调用腾讯云并产生用量。
+基础规范化只处理宽度、大小写、空白、标点和“〇/零”，不会使用同义词规则替
+系统纠错。Common Voice 北京子集以青年录音为主，因此只能验证普通话转写链路，
+不能代替老年人真实语音验证，也不能据此声明认知障碍识别效果。
+
 ## 7. 汇总表 3
 
 完成上述测试后执行：
