@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}绘图评分实验 · 忆路明灯{% endblock %}
+{% block body_class %}drawing-lab-page{% endblock %}
+{% block shell_class %}drawing-lab-shell{% endblock %}
+
+{% block content %}
+<section class="page-heading drawing-heading">
+    <div>
+        <span class="dashboard-eyebrow">研究功能</span>
+        <h1>绘图评分实验</h1>
+        <p>使用鼠标、触屏或触控笔完成任务。机器结果只是辅助预测，不计入当前认知测试总分。</p>
+    </div>
+    {% if current_user['role'] == 'admin' %}
+        <a class="button button-muted" href="{{ url_for('admin_drawings') }}">进入人工复核</a>
+    {% endif %}
+</section>
+
+<section class="drawing-warning" role="note">
+    <span aria-hidden="true">🛡️</span>
+    <div>
+        <strong>研究与隐私说明</strong>
+        <p>系统保存绘图图片、去标识化笔画轨迹和完成时间，用于建立评分模型。不会把机器结果作为疾病诊断。</p>
+    </div>
+</section>
+
+<div class="drawing-workspace-grid">
+    <section class="panel drawing-task-panel">
+        <div class="drawing-control-row">
+            <div class="drawing-control-copy">
+                <span class="dashboard-eyebrow">当前绘图任务</span>
+                <label for="drawing-task">请选择要完成的任务</label>
+                <p>钟表绘制已接入实验模型，其他任务可用于收集训练样本。</p>
+            </div>
+            <select id="drawing-task">
+                {% for key, task in drawing_tasks.items() %}
+                    <option value="{{ key }}" {% if key == 'clock' %}selected{% endif %}>
+                        {{ task['label'] }}（{% if key == 'clock' %}已接入实验模型{% else %}待训练模型{% endif %}）
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="drawing-instruction" id="drawing-instruction" aria-live="polite"></div>
+
+        <div class="drawing-stage" id="drawing-stage" data-task="trail">
+            <div class="drawing-stimulus drawing-stimulus-trail" aria-hidden="true">
+                <span style="--x:12%;--y:62%">1</span><span style="--x:28%;--y:20%">甲</span>
+                <span style="--x:45%;--y:48%">2</span><span style="--x:62%;--y:18%">乙</span>
+                <span style="--x:78%;--y:62%">3</span><span style="--x:88%;--y:30%">丙</span>
+            </div>
+            <div class="drawing-stimulus drawing-stimulus-cube" aria-hidden="true">
+                <svg viewBox="0 0 220 180" role="img" aria-label="立方体参考图">
+                    <path d="M35 55 L130 55 L185 25 L90 25 Z M35 55 L35 145 L130 145 L130 55 M130 145 L185 115 L185 25"/>
+                </svg>
+            </div>
+            <canvas id="drawing-canvas" width="900" height="600" aria-label="绘图画布"></canvas>
+        </div>
+
+        <label class="drawing-consent">
+            <input id="drawing-consent" type="checkbox">
+            <span><strong>保存前请确认</strong>我已阅读说明，同意将本次去标识化绘图用于模型研究；我可以删除自己的样本。</span>
+        </label>
+        <div class="drawing-actions">
+            <button class="button button-muted" id="drawing-clear" type="button">清空重画</button>
+            <button class="button" id="drawing-submit" type="button">保存并辅助评分</button>
+        </div>
+        <div class="drawing-result" id="drawing-result" hidden aria-live="polite"></div>
+    </section>
+
+    <aside class="panel drawing-guide-panel">
+        <span class="dashboard-eyebrow">评分流程</span>
+        <h2>机器不会直接下结论</h2>
+        <ol>
+            <li><span>1</span><div><strong>提取轨迹特征</strong><p>笔画数、路径长度、覆盖范围和停笔信息。</p></div></li>
+            <li><span>2</span><div><strong>生成辅助预测</strong><p>只有存在已训练模型时才预测，并显示置信度。</p></div></li>
+            <li><span>3</span><div><strong>两人独立复核</strong><p>两名评分者一致后形成训练标签；不一致则由第三人仲裁。</p></div></li>
+        </ol>
+        <p class="notice">本实验模块与现有14分生活化测试相互独立，不混算、不换算。</p>
+    </aside>
+</div>
+
+<section class="drawing-history-section">
+    <div class="section-title-row">
+        <div><span class="dashboard-eyebrow">我的数据</span><h2>已保存的绘图</h2></div>
+    </div>
+    {% if submissions %}
+        <div class="drawing-submission-list">
+            {% for item in submissions %}
+                <article class="drawing-submission-card">
+                    <div>
+                        <strong>{{ item['task_type'] | drawing_task_name }}</strong>
+                        <span>{{ item['created_at'] | local_datetime }}</span>
+                    </div>
+                    <div class="drawing-machine-pill status-{{ item['machine_status'] }}">
+                        {{ item['machine_status'] | machine_status_name }}
+                        {% if item['machine_score'] is not none %}
+                            {% if item['task_type'] == 'clock' %}
+                                · Shulman {{ item['machine_score'] }}/5
+                            {% else %}
+                                · {{ item['machine_score'] }}分
+                            {% endif %}
+                            · 置信度{{ (item['machine_confidence'] * 100) | round | int }}%
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{{ url_for('delete_drawing', submission_id=item['id']) }}"
+                        onsubmit="return confirm('确定删除这份绘图样本吗？删除后无法恢复。');">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button class="button-small button-muted" type="submit">删除样本</button>
+                    </form>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="panel empty-state"><p>还没有绘图样本，完成上方任务后会显示在这里。</p></div>
+    {% endif %}
+</section>
+<script>
+(() => {
+    const canvas = document.getElementById('drawing-canvas');
+    const context = canvas.getContext('2d');
+    const taskSelect = document.getElementById('drawing-task');
+    const stage = document.getElementById('drawing-stage');
+    const instruction = document.getElementById('drawing-instruction');
+    const clearButton = document.getElementById('drawing-clear');
+    const submitButton = document.getElementById('drawing-submit');
+    const resultBox = document.getElementById('drawing-result');
+    const consent = document.getElementById('drawing-consent');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const instructions = {
+        trail: '请从“1”开始，按照数字与汉字交替递增的顺序连续连接。当前交替连线模型尚未训练，提交后只保存并等待人工复核。',
+        cube: '请观察左上角的立方体参考图并尽可能准确地临摹。当前立方体模型尚未训练，提交后只保存并等待人工复核。',
+        clock: '请画一个钟表：先画表盘和全部数字，再画出指向11点10分的两根指针。该任务已接入Shulman 0～5实验模型。'
+    };
+    let strokes = [];
+    let activeStroke = null;
+    let drawing = false;
+    const startedAt = performance.now();
+
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.lineWidth = 6;
+    context.strokeStyle = '#23322f';
+
+    function canvasPoint(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (event.clientX - rect.left) * canvas.width / rect.width,
+            y: (event.clientY - rect.top) * canvas.height / rect.height,
+            t: performance.now() - startedAt,
+            p: event.pressure || 0.5
+        };
+    }
+
+    function begin(event) {
+        event.preventDefault();
+        drawing = true;
+        canvas.setPointerCapture(event.pointerId);
+        activeStroke = {points: [canvasPoint(event)]};
+        strokes.push(activeStroke);
+        context.beginPath();
+        context.moveTo(activeStroke.points[0].x, activeStroke.points[0].y);
+    }
+
+    function move(event) {
+        if (!drawing || !activeStroke) return;
+        event.preventDefault();
+        const point = canvasPoint(event);
+        activeStroke.points.push(point);
+        context.lineTo(point.x, point.y);
+        context.stroke();
+    }
+
+    function end(event) {
+        if (!drawing) return;
+        event.preventDefault();
+        move(event);
+        drawing = false;
+        activeStroke = null;
+        context.closePath();
+    }
+
+    function clearCanvas() {
+        strokes = [];
+        activeStroke = null;
+        drawing = false;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.save();
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.restore();
+        resultBox.hidden = true;
+    }
+
+    function setTask() {
+        stage.dataset.task = taskSelect.value;
+        instruction.textContent = instructions[taskSelect.value];
+        clearCanvas();
+    }
+
+    canvas.addEventListener('pointerdown', begin);
+    canvas.addEventListener('pointermove', move);
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+    clearButton.addEventListener('click', clearCanvas);
+    taskSelect.addEventListener('change', setTask);
+    setTask();
+
+    submitButton.addEventListener('click', async () => {
+        if (!strokes.length) {
+            resultBox.hidden = false;
+            resultBox.className = 'drawing-result error';
+            resultBox.textContent = '请先在画布上完成绘图。';
+            return;
+        }
+        if (!consent.checked) {
+            resultBox.hidden = false;
+            resultBox.className = 'drawing-result error';
+            resultBox.textContent = '请先阅读并确认研究数据说明。';
+            return;
+        }
+        submitButton.disabled = true;
+        submitButton.textContent = '正在保存…';
+        try {
+            const response = await fetch('{{ url_for("submit_drawing") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+                body: JSON.stringify({
+                    task_type: taskSelect.value,
+                    canvas_width: canvas.width,
+                    canvas_height: canvas.height,
+                    strokes,
+                    image_png: canvas.toDataURL('image/png'),
+                    research_consent: true
+                })
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || '保存失败，请稍后重试。');
+            resultBox.hidden = false;
+            resultBox.className = 'drawing-result success';
+            const confidence = payload.machine_confidence == null
+                ? '' : ` 置信度${Math.round(payload.machine_confidence * 100)}%。`;
+            const score = payload.machine_score == null
+                ? '' : ` 实验预测Shulman ${payload.machine_score}/5（${payload.score_label || '待复核'}）。`;
+            resultBox.textContent = payload.message + score + confidence + ' 页面即将刷新。';
+            window.setTimeout(() => window.location.reload(), 1400);
+        } catch (error) {
+            resultBox.hidden = false;
+            resultBox.className = 'drawing-result error';
+            resultBox.textContent = error.message;
+            submitButton.disabled = false;
+            submitButton.textContent = '保存并辅助评分';
+        }
+    });
+})();
+</script>
+{% endblock %}
+
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}

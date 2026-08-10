@@ -1,0 +1,27 @@
+feature,label,importance
+max_pitch,Maximum pitch,0.056359203902813536
+pitch_std,Pitch SD,0.05609763942304091
+shimmer_apq11,Shimmer (APQ11),0.05335379788060359
+fraction_unvoiced_frames,Unvoiced-frame fraction,0.04756401507886031
+median_pitch,Median pitch,0.046237913522547025
+jitter_ppq5,Jitter (PPQ5),0.043792966456226746
+harmonics_to_noise,Harmonics/Noise,0.04187049391970758
+mean_pitch,Mean pitch,0.040547015830656584
+jitter_rap,Jitter (RAP),0.03937818151339815
+jitter_ddp,Jitter (DDP),0.03924630483419676
+mean_period,Mean period,0.03881377765785111
+period_std,Period SD,0.03857205794100055
+jitter_local_absolute,Jitter (absolute),0.03848519575376937
+min_pitch,Minimum pitch,0.03819933766134137
+shimmer_apq5,Shimmer (APQ5),0.03812305957477744
+autocorrelation,Autocorrelation,0.036923021169464616
+shimmer_local_db,Shimmer (dB),0.036180676053503696
+shimmer_local,Shimmer (local),0.03582089364847052
+jitter_local,Jitter (local),0.03466210894817068
+number_of_periods,Number of periods,0.034353604732433464
+noise_to_harmonics,Noise/Harmonics,0.033849383356862286
+number_of_pulses,Number of pulses,0.0334766247994048
+degree_voice_breaks,Degree of voice breaks,0.03130722473695487
+shimmer_apq3,Shimmer (APQ3),0.030001193558966015
+shimmer_dda,Shimmer (DDA),0.027820480326284668
+voice_break_count,Voice-break count,0.00896382771869334

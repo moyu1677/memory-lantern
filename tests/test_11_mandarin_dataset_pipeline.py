@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from tests.benchmarks.benchmark_12_summarize_mandarin_dataset import summarize
+from tests.benchmarks.benchmark_13_visualize_mandarin_asr import visualize_results
 from tests.benchmarks.benchmark_common import (
     character_error_rate,
     raw_character_error_rate,
@@ -80,6 +81,47 @@ def test_mandarin_summary_uses_only_successful_requests():
     assert result["overall"]["successful"] == 2
     assert result["overall"]["latency_mean_s"] == 1.0
     assert result["overall"]["normalized_cer_percent"] == 15.0
+    assert result["overall"]["character_accuracy_percent"] == 85.0
+    assert result["overall"]["perfect_transcription_rate_percent"] == 0.0
+    assert result["overall"]["normalized_cer_mean_ci95_percent"] is not None
+    assert result["by_environment"]["unspecified"]["samples"] == 3
+
+
+def test_mandarin_visualization_generates_valid_png_and_worst_samples(tmp_path):
+    rows = [
+        {
+            "sample_id": "sample-1",
+            "success": "1",
+            "category": "short",
+            "environment": "quiet",
+            "latency_s": "0.8",
+            "raw_cer": "0.2",
+            "normalized_cer": "0.1",
+            "reference": "您好",
+            "prediction": "你号",
+        },
+        {
+            "sample_id": "sample-2",
+            "success": "1",
+            "category": "long",
+            "environment": "noise",
+            "latency_s": "1.4",
+            "raw_cer": "0",
+            "normalized_cer": "0",
+            "reference": "今天天气很好",
+            "prediction": "今天天气很好",
+        },
+    ]
+    summary = summarize(rows)
+    outputs = visualize_results(
+        rows,
+        summary,
+        tmp_path,
+        prefix="unit_test",
+        title="单元测试",
+    )
+    assert {path.suffix for path in outputs} == {".png", ".csv"}
+    assert all(path.exists() and path.stat().st_size > 0 for path in outputs)
 
 
 def test_server_exposes_mandarin_only_as_an_authenticated_asr_language(app_module):

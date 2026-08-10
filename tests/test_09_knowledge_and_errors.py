@@ -167,3 +167,27 @@ def test_speech_endpoint_rejects_unknown_language_before_network(
     )
     assert response.status_code == 400
     assert "不支持" in response.get_json()["error"]
+
+
+def test_mandarin_speech_endpoint_recommends_browser_fallback_without_cloud_config(
+    app_module,
+    client,
+    user_factory,
+    login_as,
+    monkeypatch,
+):
+    elder = user_factory(account_type="elder")
+    token = login_as(client, elder["id"])
+    monkeypatch.setattr(app_module, "TENCENT_ASR_APP_ID", None)
+    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_ID", None)
+    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_KEY", None)
+
+    response = client.post(
+        "/speech/recognize",
+        data={"language": "mandarin"},
+        headers=api_headers(token),
+    )
+
+    assert response.status_code == 503
+    assert response.get_json()["fallback_recommended"] is True
+    assert response.get_json()["error_kind"] == "configuration"

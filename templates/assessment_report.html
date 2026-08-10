@@ -17,13 +17,18 @@
         <span class="report-eyebrow">PERSONAL COGNITIVE SUPPORT REPORT</span>
         <h1>{{ assessment['display_name'] }}的专属建议报告</h1>
         <p>
-            生成依据：{{ assessment['completed_at'] | local_datetime }} 的测试结果 ·
-            输入语言：{{ assessment['input_language'] | language_name }}
+            {% if current_language == 'en' %}
+                Assessment on {{ assessment['completed_at'] | local_datetime }} ·
+                Input language: {{ assessment['input_language'] | language_name }}
+            {% else %}
+                生成依据：{{ assessment['completed_at'] | local_datetime }} 的测试结果 ·
+                输入语言：{{ assessment['input_language'] | language_name }}
+            {% endif %}
         </p>
     </div>
     <div class="report-score" aria-label="本次百分制得分">
         <strong>{{ assessment['percentage'] }}</strong>
-        <span>分</span>
+        <span>{{ 'points' if current_language == 'en' else '分' }}</span>
     </div>
 </header>
 
@@ -68,6 +73,18 @@
         <div>
             <span>平均有声占比</span>
             <strong>{{ ((speech_metrics['average_voiced_ratio'] or 0) * 100) | round | int }}%</strong>
+        </div>
+        <div>
+            <span>语气词次数</span>
+            <strong>{{ speech_metrics.get('total_filler_count', 0) }}</strong>
+        </div>
+        <div>
+            <span>相邻重复次数</span>
+            <strong>{{ speech_metrics.get('total_repetition_count', 0) }}</strong>
+        </div>
+        <div>
+            <span>自我纠正次数</span>
+            <strong>{{ speech_metrics.get('total_self_correction_count', 0) }}</strong>
         </div>
     </div>
     {% if speech_metrics['valid_sample_count'] < 3 %}

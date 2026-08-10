@@ -1,0 +1,21 @@
+{
+  "experiment": "UCI Parkinson's speech feature classification prototype",
+  "best_model": "Random Forest",
+  "selection_metric": "mean subject-level ROC-AUC",
+  "n_training_records": 1040,
+  "n_training_subjects": 40,
+  "n_positive_only_test_subjects": 28,
+  "cv_splits": 5,
+  "cv_repeats": 10,
+  "best_model_mean_metrics": {
+    "accuracy": 0.5900000000000001,
+    "balanced_accuracy": 0.5900000000000001,
+    "precision": 0.5912188292555771,
+    "recall_sensitivity": 0.5900000000000001,
+    "specificity": 0.5900000000000001,
+    "f1": 0.5896670595815295,
+    "roc_auc": 0.61925
+  },
+  "positive_only_detection_rate": 0.5714285714285714,
+  "warning": "This is not a cognitive impairment diagnostic model."
+}

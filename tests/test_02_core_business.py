@@ -1,6 +1,6 @@
-"""论文表3：注册登录、三类角色和10题测试等核心业务功能。"""
+"""论文表3：注册登录、三类角色和认知测试等核心业务功能。"""
 
-from tests.helpers import api_headers, correct_answer
+from tests.helpers import api_headers, correct_answer, drawing_answer_payload
 
 
 def test_public_registration_creates_member_account(
@@ -110,7 +110,7 @@ def test_all_account_types_can_open_their_dashboard(
         assert response.status_code == 200
 
 
-def test_complete_ten_question_assessment_with_full_score(
+def test_complete_assessment_with_clock_observation_and_full_score(
     app_module,
     client,
     user_factory,
@@ -125,7 +125,7 @@ def test_complete_ten_question_assessment_with_full_score(
         headers=api_headers(token),
     )
     assert start.status_code == 200
-    assert start.get_json()["progress"] == "1/10"
+    assert start.get_json()["progress"] == "1/11"
 
     with client.session_transaction() as session:
         test_id = session["test_id"]
@@ -142,9 +142,18 @@ def test_complete_ten_question_assessment_with_full_score(
         if index < 9:
             assert response.get_json()["testing"] is True
 
+    state = app_module.TEST_SESSIONS[test_id]
+    assert state["questions"][state["question_index"]]["response_type"] == "drawing"
+    response = client.post(
+        "/test/drawing-answer",
+        json=drawing_answer_payload(),
+        headers=api_headers(token),
+    )
+    assert response.status_code == 201
+
     result = response.get_json()
     assert result["completed"] is True
-    assert result["progress"] == "10/10"
+    assert result["progress"] == "11/11"
     assert "总分：14/14" in result["reply"]
     assert "不构成认知障碍或其他疾病诊断" in result["reply"]
 
@@ -233,4 +242,3 @@ def test_chat_modes_do_not_call_real_network(
     assert knowledge.status_code == 200
     assert knowledge.get_json()["reply"] == "知识库回复"
     assert knowledge.get_json()["knowledge_used"] is True
-

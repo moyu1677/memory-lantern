@@ -174,6 +174,55 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
 CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source
 ON knowledge_chunks(source_type, source_id, chunk_index);
 
+CREATE TABLE IF NOT EXISTS drawing_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    task_type TEXT NOT NULL
+        CHECK (task_type IN ('trail', 'cube', 'clock')),
+    source_scale TEXT NOT NULL DEFAULT 'research-drawing-v1',
+    canvas_width INTEGER NOT NULL,
+    canvas_height INTEGER NOT NULL,
+    strokes_json TEXT NOT NULL,
+    image_png BLOB NOT NULL,
+    features_json TEXT NOT NULL,
+    feature_version TEXT NOT NULL,
+    machine_score INTEGER,
+    machine_confidence REAL,
+    machine_status TEXT NOT NULL DEFAULT 'not_available'
+        CHECK (machine_status IN ('not_available', 'predicted', 'needs_review')),
+    machine_model_version TEXT,
+    research_consent INTEGER NOT NULL DEFAULT 0
+        CHECK (research_consent IN (0, 1)),
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_drawing_submissions_user_created
+ON drawing_submissions(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_drawing_submissions_review_queue
+ON drawing_submissions(task_type, machine_status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS drawing_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submission_id INTEGER NOT NULL,
+    reviewer_id INTEGER NOT NULL,
+    review_role TEXT NOT NULL DEFAULT 'rater'
+        CHECK (review_role IN ('rater', 'adjudicator')),
+    score INTEGER NOT NULL,
+    rubric_json TEXT NOT NULL DEFAULT '{}',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(submission_id, reviewer_id, review_role),
+    FOREIGN KEY (submission_id) REFERENCES drawing_submissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_drawing_reviews_submission
+ON drawing_reviews(submission_id, review_role, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS app_metadata (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -466,6 +515,217 @@ def update_user_password(user_id, password_hash):
         (password_hash, user_id),
     )
     connection.commit()
+
+
+def create_drawing_submission(
+    *,
+    submission_id,
+    user_id,
+    task_type,
+    source_scale,
+    canvas_width,
+    canvas_height,
+    strokes,
+    image_png,
+    features,
+    machine_prediction,
+    research_consent,
+):
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        INSERT INTO drawing_submissions (
+            submission_id, user_id, task_type, source_scale,
+            canvas_width, canvas_height, strokes_json, image_png,
+            features_json, feature_version, machine_score,
+            machine_confidence, machine_status, machine_model_version,
+            research_consent, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            submission_id,
+            user_id,
+            task_type,
+            source_scale,
+            canvas_width,
+            canvas_height,
+            json.dumps(strokes, ensure_ascii=False, separators=(",", ":")),
+            image_png,
+            json.dumps(features, ensure_ascii=False, separators=(",", ":")),
+            features["feature_version"],
+            machine_prediction.get("score"),
+            machine_prediction.get("confidence"),
+            machine_prediction.get("status", "not_available"),
+            machine_prediction.get("model_version"),
+            1 if research_consent else 0,
+            utc_now(),
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def get_drawing_submission(submission_id):
+    return get_db().execute(
+        """
+        SELECT s.*, u.display_name, u.username
+        FROM drawing_submissions AS s
+        JOIN users AS u ON u.id = s.user_id
+        WHERE s.id = ?
+        """,
+        (submission_id,),
+    ).fetchone()
+
+
+def list_user_drawing_submissions(user_id, limit=30):
+    return get_db().execute(
+        """
+        SELECT s.*,
+               (SELECT COUNT(*) FROM drawing_reviews AS r
+                WHERE r.submission_id = s.id AND r.review_role = 'rater')
+                   AS rater_count,
+               (SELECT COUNT(*) FROM drawing_reviews AS r
+                WHERE r.submission_id = s.id AND r.review_role = 'adjudicator')
+                   AS adjudicator_count
+        FROM drawing_submissions AS s
+        WHERE s.user_id = ?
+        ORDER BY s.created_at DESC
+        LIMIT ?
+        """,
+        (user_id, limit),
+    ).fetchall()
+
+
+def list_drawing_submissions_for_review(limit=200):
+    return get_db().execute(
+        """
+        SELECT s.*, u.display_name, u.username,
+               (SELECT COUNT(*) FROM drawing_reviews AS r
+                WHERE r.submission_id = s.id AND r.review_role = 'rater')
+                   AS rater_count,
+               (SELECT GROUP_CONCAT(r.score, ',') FROM drawing_reviews AS r
+                WHERE r.submission_id = s.id AND r.review_role = 'rater'
+                ORDER BY r.updated_at) AS rater_scores,
+               (SELECT r.score FROM drawing_reviews AS r
+                WHERE r.submission_id = s.id AND r.review_role = 'adjudicator'
+                ORDER BY r.updated_at DESC LIMIT 1) AS adjudicated_score
+        FROM drawing_submissions AS s
+        JOIN users AS u ON u.id = s.user_id
+        ORDER BY s.created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+
+def list_drawing_reviews(submission_id):
+    return get_db().execute(
+        """
+        SELECT r.*, u.display_name AS reviewer_name
+        FROM drawing_reviews AS r
+        JOIN users AS u ON u.id = r.reviewer_id
+        WHERE r.submission_id = ?
+        ORDER BY CASE r.review_role WHEN 'rater' THEN 0 ELSE 1 END,
+                 r.updated_at
+        """,
+        (submission_id,),
+    ).fetchall()
+
+
+def save_drawing_review(
+    *, submission_id, reviewer_id, review_role, score, rubric, notes
+):
+    connection = get_db()
+    now = utc_now()
+    connection.execute(
+        """
+        INSERT INTO drawing_reviews (
+            submission_id, reviewer_id, review_role, score,
+            rubric_json, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(submission_id, reviewer_id, review_role)
+        DO UPDATE SET
+            score = excluded.score,
+            rubric_json = excluded.rubric_json,
+            notes = excluded.notes,
+            updated_at = excluded.updated_at
+        """,
+        (
+            submission_id,
+            reviewer_id,
+            review_role,
+            score,
+            json.dumps(rubric, ensure_ascii=False, separators=(",", ":")),
+            notes,
+            now,
+            now,
+        ),
+    )
+    connection.commit()
+
+
+def delete_user_drawing_submission(submission_id, user_id):
+    connection = get_db()
+    cursor = connection.execute(
+        "DELETE FROM drawing_submissions WHERE id = ? AND user_id = ?",
+        (submission_id, user_id),
+    )
+    connection.commit()
+    return cursor.rowcount > 0
+
+
+def _resolved_drawing_label(reviews):
+    adjudicated = [
+        int(row["score"]) for row in reviews if row["review_role"] == "adjudicator"
+    ]
+    if adjudicated:
+        return adjudicated[-1], "adjudicated"
+    rater_scores = [
+        int(row["score"]) for row in reviews if row["review_role"] == "rater"
+    ]
+    if len(rater_scores) >= 2 and len(set(rater_scores)) == 1:
+        return rater_scores[0], "rater_consensus"
+    return None, "pending_review"
+
+
+def drawing_review_summary(submission_id):
+    reviews = list_drawing_reviews(submission_id)
+    label, label_source = _resolved_drawing_label(reviews)
+    return {
+        "reviews": reviews,
+        "resolved_score": label,
+        "label_source": label_source,
+    }
+
+
+def list_training_drawing_rows(task_type=None):
+    query = """
+        SELECT * FROM drawing_submissions
+        WHERE research_consent = 1
+    """
+    parameters = []
+    if task_type:
+        query += " AND task_type = ?"
+        parameters.append(task_type)
+    query += " ORDER BY created_at"
+    submissions = get_db().execute(query, parameters).fetchall()
+    rows = []
+    for submission in submissions:
+        reviews = list_drawing_reviews(submission["id"])
+        score, label_source = _resolved_drawing_label(reviews)
+        if score is None:
+            continue
+        rows.append(
+            {
+                "submission_id": submission["submission_id"],
+                "task_type": submission["task_type"],
+                "features": json.loads(submission["features_json"]),
+                "score": score,
+                "label_source": label_source,
+                "created_at": submission["created_at"],
+            }
+        )
+    return rows
 
 
 def list_users_with_stats():

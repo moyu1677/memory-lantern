@@ -18,6 +18,7 @@ def all_question_ids():
         words = "_".join(aliases[0] for aliases in memory_set)
         identifiers.add(f"immediate_memory_{words}")
         identifiers.add(f"delayed_memory_{words}")
+    identifiers.add("clock_drawing_1110")
     return identifiers
 
 
@@ -30,6 +31,7 @@ def test_generate_10000_papers_with_stable_structure():
         "计算能力": 1,
         "语言能力": 1,
         "日常判断": 1,
+        "视空间观察": 1,
     }
     expected_ids = all_question_ids()
     observed_ids = set()
@@ -41,14 +43,17 @@ def test_generate_10000_papers_with_stable_structure():
         observed_ids.update(item["id"] for item in paper)
         unique_papers.add(tuple(item["id"] for item in paper))
 
-        assert len(paper) == 10
+        assert len(paper) == 11
         assert sum(item["points"] for item in paper) == 14
         assert Counter(item["domain"] for item in paper) == expected_domains
         assert paper[0]["domain"] == "即时记忆"
-        assert paper[-1]["domain"] == "延迟记忆"
-        assert paper[0]["concepts"] == paper[-1]["concepts"]
+        assert paper[-2]["domain"] == "延迟记忆"
+        assert paper[-1]["domain"] == "视空间观察"
+        assert paper[-1]["response_type"] == "drawing"
+        assert paper[-1]["points"] == 0
+        assert paper[0]["concepts"] == paper[-2]["concepts"]
 
-    assert len(expected_ids) == 62
+    assert len(expected_ids) == 63
     assert observed_ids == expected_ids
     assert len(unique_papers) > 9_000
 
@@ -82,4 +87,3 @@ def test_result_thresholds_are_deterministic():
     assert questions.result_level(79) == "本次部分任务存在困难，建议休息后再次测试"
     assert questions.result_level(60) == "本次部分任务存在困难，建议休息后再次测试"
     assert questions.result_level(59) == "本次多项任务存在困难，建议由家属陪同进行专业评估"
-

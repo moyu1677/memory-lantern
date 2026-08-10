@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import base64
 
 
 WEEKDAYS = ("一", "二", "三", "四", "五", "六", "日")
@@ -10,6 +11,27 @@ WEEKDAYS = ("一", "二", "三", "四", "五", "六", "日")
 
 def api_headers(token: str):
     return {"X-CSRF-Token": token}
+
+
+def drawing_answer_payload():
+    """返回不触发真实图片推理、但可验证绘图提交流程的最小载荷。"""
+    image = "data:image/png;base64," + base64.b64encode(
+        b"\x89PNG\r\n\x1a\nminimal-test-payload"
+    ).decode("ascii")
+    return {
+        "canvas_width": 960,
+        "canvas_height": 640,
+        "strokes": [{
+            "points": [
+                {"x": 100, "y": 100, "t": 0, "p": 0.5},
+                {"x": 500, "y": 100, "t": 100, "p": 0.5},
+                {"x": 500, "y": 500, "t": 200, "p": 0.5},
+                {"x": 100, "y": 100, "t": 300, "p": 0.5},
+            ]
+        }],
+        "image_png": image,
+        "research_consent": True,
+    }
 
 
 def correct_answer(question, now=None):
@@ -54,4 +76,3 @@ def create_assessment(app_module, user_id, *, score=14, percentage=100):
             question_bank_version=app_module.QUESTION_BANK_VERSION,
             question_ids=[f"question-{index}" for index in range(10)],
         )
-

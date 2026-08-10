@@ -8,6 +8,8 @@ from datetime import datetime
 import re
 import secrets
 
+from judgment_scoring import analyze_judgment_answer
+
 
 MEMORY_SETS = (
     (("苹果",), ("钥匙",), ("河流", "小河")),
@@ -224,8 +226,8 @@ DOMAIN_MAXIMUMS = {
     "语言能力": 1,
     "日常判断": 1,
 }
-TEST_QUESTION_COUNT = 10
-QUESTION_BANK_VERSION = "random-cognitive-bank-v1"
+TEST_QUESTION_COUNT = 11
+QUESTION_BANK_VERSION = "random-cognitive-bank-v3-safety-judgment"
 
 CHINESE_DIGITS = {
     0: "零",
@@ -250,83 +252,265 @@ WEEKDAY_NAMES = {
     6: ("星期日", "星期天", "周日", "周天", "礼拜日", "礼拜天"),
 }
 
+ENGLISH_WEEKDAY_NAMES = {
+    0: ("monday",),
+    1: ("tuesday",),
+    2: ("wednesday",),
+    3: ("thursday",),
+    4: ("friday",),
+    5: ("saturday",),
+    6: ("sunday",),
+}
 
-def _memory_question(memory_set, delayed=False):
+ENGLISH_DOMAINS = {
+    "即时记忆": "Immediate memory",
+    "延迟记忆": "Delayed recall",
+    "时间定向": "Time orientation",
+    "注意力": "Attention",
+    "计算能力": "Calculation",
+    "语言能力": "Language",
+    "日常判断": "Everyday judgement",
+    "视空间观察": "Visuospatial observation",
+}
+
+ENGLISH_MEMORY_WORDS = {
+    "苹果": ("apple",), "钥匙": ("key", "keys"), "河流": ("river",),
+    "香蕉": ("banana",), "雨伞": ("umbrella",), "火车": ("train",),
+    "橘子": ("orange",), "眼镜": ("glasses", "spectacles"), "大桥": ("bridge",),
+    "西瓜": ("watermelon",), "手表": ("watch",), "公园": ("park",),
+    "花生": ("peanut", "peanuts"), "毛巾": ("towel",), "学校": ("school",),
+    "鸡蛋": ("egg",), "茶杯": ("cup", "teacup"), "树林": ("wood", "woods", "forest"),
+    "面包": ("bread",), "剪刀": ("scissors",), "市场": ("market",),
+    "葡萄": ("grapes", "grape"), "帽子": ("hat",), "海边": ("seaside", "beach"),
+}
+
+ENGLISH_PROMPTS = {
+    "time_year": "What year is it now?",
+    "time_month": "What month is it now?",
+    "time_weekday": "What day of the week is it today?",
+    "time_day": "What is today's date?",
+    "attention_reverse_381": "Please say the digits three, eight, one in reverse order.",
+    "attention_reverse_527": "Please say the digits five, two, seven in reverse order.",
+    "attention_reverse_694": "Please say the digits six, nine, four in reverse order.",
+    "attention_reverse_246": "Please say the digits two, four, six in reverse order.",
+    "attention_sequence_even": "Listen to these numbers: two, four, six, eight. What comes next?",
+    "attention_sequence_odd": "Listen to these numbers: one, three, five, seven. What comes next?",
+    "attention_sequence_fives": "Listen to these numbers: five, ten, fifteen. What comes next?",
+    "attention_sequence_down": "Listen to these numbers: ten, nine, eight, seven. What comes next?",
+    "attention_target_word": "Listen to three words: cat, cloud, flower. Say only the middle word.",
+    "attention_target_number": "Listen to three numbers: four, seven, two. Say only the last number.",
+    "calculation_10_minus_3": "What is ten minus three?",
+    "calculation_12_minus_5": "What is twelve minus five?",
+    "calculation_15_minus_6": "What is fifteen minus six?",
+    "calculation_20_minus_8": "What is twenty minus eight?",
+    "calculation_8_plus_4": "What is eight plus four?",
+    "calculation_6_plus_7": "What is six plus seven?",
+    "calculation_9_plus_5": "What is nine plus five?",
+    "calculation_7_plus_8": "What is seven plus eight?",
+    "calculation_18_minus_9": "What is eighteen minus nine?",
+    "calculation_14_minus_4": "What is fourteen minus four?",
+    "calculation_5_plus_5": "What is five plus five?",
+    "calculation_16_minus_7": "What is sixteen minus seven?",
+    "judgment_red_light": "At a red traffic light, should you stop and wait or keep crossing?",
+    "judgment_smell_gas": "If you smell strong gas at home, should you keep using a flame or turn it off and ask for help?",
+    "judgment_unknown_medicine": "If you find medicine you do not recognise, should you take it or ask a doctor or family member first?",
+    "judgment_phone_scam": "If an unknown caller demands an immediate money transfer, should you transfer it or contact family to check first?",
+    "judgment_dizzy": "If you suddenly feel dizzy and unsteady, should you keep walking alone or sit down and call for help?",
+    "judgment_hot_water": "Should you drink freshly boiled water immediately or let it cool and test the temperature first?",
+    "judgment_lost": "If you cannot find your way home, should you keep wandering or stay somewhere safe and contact family?",
+    "judgment_wet_floor": "If the floor is wet and slippery, should you walk quickly or slow down and go around it?",
+    "judgment_door": "If a stranger asks to enter your home for an inspection, should you open the door or verify their identity and contact family first?",
+    "judgment_power": "If an electrical wire is damaged and exposed, should you touch it or stay away and ask someone to deal with it?",
+}
+
+ENGLISH_ANSWERS = {
+    "attention_reverse_381": ("183", "one eight three"),
+    "attention_reverse_527": ("725", "seven two five"),
+    "attention_reverse_694": ("496", "four nine six"),
+    "attention_reverse_246": ("642", "six four two"),
+    "attention_sequence_even": ("10", "ten"),
+    "attention_sequence_odd": ("9", "nine"),
+    "attention_sequence_fives": ("20", "twenty"),
+    "attention_sequence_down": ("6", "six"),
+    "attention_target_word": ("cloud",),
+    "attention_target_number": ("2", "two"),
+    "judgment_red_light": ("stop", "wait", "stop and wait"),
+    "judgment_smell_gas": ("turn off", "turn it off", "ask for help", "open a window", "call emergency services"),
+    "judgment_unknown_medicine": ("ask a doctor", "ask family", "do not take it", "don't take it"),
+    "judgment_phone_scam": ("contact family", "check first", "verify", "do not transfer", "don't transfer"),
+    "judgment_dizzy": ("sit down", "call for help", "ask for help"),
+    "judgment_hot_water": ("let it cool", "cool", "test the temperature", "do not drink immediately"),
+    "judgment_lost": ("stay somewhere safe", "contact family", "call family", "ask for help", "police"),
+    "judgment_wet_floor": ("slow down", "go around", "walk carefully", "be careful"),
+    "judgment_door": ("verify", "check their identity", "contact family", "do not open", "don't open"),
+    "judgment_power": ("stay away", "do not touch", "don't touch", "ask someone", "call for help"),
+}
+
+ENGLISH_CALCULATION_ANSWERS = {
+    "calculation_10_minus_3": ("7", "seven"),
+    "calculation_12_minus_5": ("7", "seven"),
+    "calculation_15_minus_6": ("9", "nine"),
+    "calculation_20_minus_8": ("12", "twelve"),
+    "calculation_8_plus_4": ("12", "twelve"),
+    "calculation_6_plus_7": ("13", "thirteen"),
+    "calculation_9_plus_5": ("14", "fourteen"),
+    "calculation_7_plus_8": ("15", "fifteen"),
+    "calculation_18_minus_9": ("9", "nine"),
+    "calculation_14_minus_4": ("10", "ten"),
+    "calculation_5_plus_5": ("10", "ten"),
+    "calculation_16_minus_7": ("9", "nine"),
+}
+
+ENGLISH_MONTHS = (
+    "", "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+)
+
+ENGLISH_LANGUAGE_ITEMS = {
+    "language_weather": ("The weather is lovely today.", ("the weather is lovely today",)),
+    "language_walk": ("Let us go for a walk together.", ("let us go for a walk together", "let's go for a walk together")),
+    "language_flower": ("A flower is blooming by the window.", ("a flower is blooming by the window",)),
+    "language_breakfast": ("Remember to eat breakfast in the morning.", ("remember to eat breakfast in the morning",)),
+    "language_birds": ("A bird is singing in the tree.", ("a bird is singing in the tree",)),
+    "language_family": ("The family is coming home for dinner tonight.", ("the family is coming home for dinner tonight",)),
+    "language_water": ("There is a cup of warm water on the table.", ("there is a cup of warm water on the table",)),
+    "language_sun": ("It feels warm after the sun comes out.", ("it feels warm after the sun comes out",)),
+    "language_market": ("We will go to the market tomorrow morning.", ("we will go to the market tomorrow morning",)),
+    "language_radio": ("The radio is playing music.", ("the radio is playing music",)),
+}
+
+
+def _memory_question(memory_set, delayed=False, language="zh"):
     words = [aliases[0] for aliases in memory_set]
     identifier = "_".join(words)
+    concepts = memory_set
+    if language == "en":
+        concepts = tuple(
+            ENGLISH_MEMORY_WORDS[aliases[0]] for aliases in memory_set
+        )
     if delayed:
         return {
             "id": f"delayed_memory_{identifier}",
             "domain": "延迟记忆",
-            "prompt": "还记得第一题让您记住的三个词吗？请尽量说出来。",
+            "prompt": (
+                "Can you remember the three words from the first task? "
+                "Please say as many as you can."
+                if language == "en"
+                else "还记得第一题让您记住的三个词吗？请尽量说出来。"
+            ),
             "type": "keywords",
-            "concepts": memory_set,
+            "concepts": concepts,
             "points": 3,
+            "domain_label": ENGLISH_DOMAINS["延迟记忆"] if language == "en" else "延迟记忆",
         }
+    display_words = (
+        [ENGLISH_MEMORY_WORDS[aliases[0]][0] for aliases in memory_set]
+        if language == "en" else words
+    )
     return {
         "id": f"immediate_memory_{identifier}",
         "domain": "即时记忆",
         "prompt": (
-            f"请记住这三个词：{'、'.join(words)}。"
-            "现在请把这三个词复述一遍。"
+            f"Please remember these three words: {', '.join(display_words)}. "
+            "Now repeat the three words."
+            if language == "en" else
+            f"请记住这三个词：{'、'.join(words)}。现在请把这三个词复述一遍。"
         ),
         "type": "keywords",
-        "concepts": memory_set,
+        "concepts": concepts,
         "points": 3,
+        "domain_label": ENGLISH_DOMAINS["即时记忆"] if language == "en" else "即时记忆",
     }
 
 
-def _calculation_question(item):
+def _calculation_question(item, language="zh"):
     identifier, prompt, answers = item
+    if language == "en":
+        answers = ENGLISH_CALCULATION_ANSWERS[identifier]
     return {
         "id": identifier,
         "domain": "计算能力",
-        "prompt": prompt,
+        "prompt": ENGLISH_PROMPTS.get(identifier, prompt) if language == "en" else prompt,
         "type": "exact",
         "answers": answers,
         "points": 1,
+        "domain_label": ENGLISH_DOMAINS["计算能力"] if language == "en" else "计算能力",
     }
 
 
-def _language_question(item):
+def _language_question(item, language="zh"):
     identifier, sentence, answers = item
+    if language == "en":
+        sentence, answers = ENGLISH_LANGUAGE_ITEMS[identifier]
     return {
         "id": identifier,
         "domain": "语言能力",
-        "prompt": f"请完整复述这句话：{sentence}",
+        "prompt": (
+            f"Please repeat this sentence exactly: {sentence}"
+            if language == "en" else f"请完整复述这句话：{sentence}"
+        ),
         "type": "contains",
         "answers": answers,
         "points": 1,
+        "domain_label": ENGLISH_DOMAINS["语言能力"] if language == "en" else "语言能力",
     }
 
 
-def _judgment_question(item):
+def _judgment_question(item, language="zh"):
     return {
         "id": item["id"],
         "domain": "日常判断",
-        "prompt": item["prompt"],
-        "type": "contains",
-        "answers": item["answers"],
+        "prompt": ENGLISH_PROMPTS.get(item["id"], item["prompt"]) if language == "en" else item["prompt"],
+        "type": "judgment",
+        "answers": ENGLISH_ANSWERS.get(item["id"], item["answers"]) if language == "en" else item["answers"],
         "points": 1,
+        "domain_label": ENGLISH_DOMAINS["日常判断"] if language == "en" else "日常判断",
     }
 
 
-def build_test_questions(randomizer=None):
-    """按固定维度配额随机生成一次10题测试。"""
+def _clock_drawing_question(language="zh"):
+    """实验性绘图观察题，不与现有14分生活化测试混算。"""
+    return {
+        "id": "clock_drawing_1110",
+        "domain": "视空间观察",
+        "prompt": (
+            "Draw a complete clock below: include the clock face and all numbers, "
+            "then draw the hands to show 11:10. Select “Submit clock drawing” when finished."
+            if language == "en" else
+            "请在下方画布上画一个完整的钟表：画出表盘和全部数字，再用指针表示11点10分。完成后点击“提交画钟”。"
+        ),
+        "type": "drawing_clock",
+        "response_type": "drawing",
+        "points": 0,
+        "domain_label": ENGLISH_DOMAINS["视空间观察"] if language == "en" else "视空间观察",
+    }
+
+
+def build_test_questions(randomizer=None, language="zh"):
+    """按固定维度配额生成10道计分题和1道绘图观察题。"""
     randomizer = randomizer or secrets.SystemRandom()
     memory_set = randomizer.choice(MEMORY_SETS)
+    time_questions = [dict(item) for item in randomizer.sample(TIME_QUESTIONS, 3)]
+    attention_questions = [dict(item) for item in randomizer.sample(ATTENTION_QUESTIONS, 2)]
+    if language == "en":
+        for question in time_questions + attention_questions:
+            question["prompt"] = ENGLISH_PROMPTS.get(question["id"], question["prompt"])
+            question["domain_label"] = ENGLISH_DOMAINS[question["domain"]]
+            if question["id"] in ENGLISH_ANSWERS:
+                question["answers"] = ENGLISH_ANSWERS[question["id"]]
     middle = [
-        *randomizer.sample(TIME_QUESTIONS, 3),
-        *randomizer.sample(ATTENTION_QUESTIONS, 2),
-        _calculation_question(randomizer.choice(CALCULATION_QUESTIONS)),
-        _language_question(randomizer.choice(LANGUAGE_QUESTIONS)),
-        _judgment_question(randomizer.choice(JUDGMENT_QUESTIONS)),
+        *time_questions,
+        *attention_questions,
+        _calculation_question(randomizer.choice(CALCULATION_QUESTIONS), language),
+        _language_question(randomizer.choice(LANGUAGE_QUESTIONS), language),
+        _judgment_question(randomizer.choice(JUDGMENT_QUESTIONS), language),
     ]
     randomizer.shuffle(middle)
     return [
-        _memory_question(memory_set),
+        _memory_question(memory_set, language=language),
         *middle,
-        _memory_question(memory_set, delayed=True),
+        _memory_question(memory_set, delayed=True, language=language),
+        _clock_drawing_question(language),
     ]
 
 
@@ -369,6 +553,17 @@ def score_answer(question, answer, now=None):
     now = now or datetime.now()
     answer_type = question["type"]
 
+    if answer_type == "drawing_clock":
+        raise ValueError("画钟题必须通过绘图接口提交。")
+
+    if answer_type == "judgment":
+        language = "en" if question.get("domain_label") == "Everyday judgement" else "zh"
+        return question["points"] * analyze_judgment_answer(
+            question["id"],
+            answer,
+            language=language,
+        ).earned
+
     if answer_type == "keywords":
         earned = 0
         for aliases in question["concepts"]:
@@ -385,6 +580,8 @@ def score_answer(question, answer, now=None):
             normalize_answer(item)
             for item in _number_answers(now.month, "月")
         }
+        if question.get("domain_label") == "Time orientation":
+            accepted.add(ENGLISH_MONTHS[now.month])
         return question["points"] if normalized in accepted else 0
 
     if answer_type == "day":
@@ -397,7 +594,12 @@ def score_answer(question, answer, now=None):
 
     if answer_type == "weekday":
         accepted = {
-            normalize_answer(item) for item in WEEKDAY_NAMES[now.weekday()]
+            normalize_answer(item)
+            for item in (
+                ENGLISH_WEEKDAY_NAMES[now.weekday()]
+                if question.get("domain_label") == "Time orientation"
+                else WEEKDAY_NAMES[now.weekday()]
+            )
         }
         return question["points"] if normalized in accepted else 0
 

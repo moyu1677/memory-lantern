@@ -45,7 +45,8 @@
             <div class="game-language-row">
                 <label for="game-language">语音输入</label>
                 <select id="game-language">
-                    <option value="browser">普通话（浏览器）</option>
+                    <option value="mandarin">普通话（腾讯云优先，浏览器备用）</option>
+                    <option value="browser">普通话（仅浏览器）</option>
                     <option value="cantonese">粤语（腾讯云）</option>
                     <option value="chaoshan">潮汕话（腾讯云）</option>
                 </select>
@@ -323,6 +324,8 @@
 
     async function sendTencentAudio() {
         window.clearTimeout(stopTimer);
+        const requestedLanguage = languageSelect.value;
+        let browserFallbackNeeded = false;
         voiceButton.disabled = true;
         voiceButton.classList.remove("recording");
         voiceButton.textContent = "正在识别……";
@@ -334,7 +337,7 @@
             const blob = new Blob(audioChunks, {type: "audio/webm"});
             const data = new FormData();
             data.append("audio", blob, "idiom.webm");
-            data.append("language", languageSelect.value);
+            data.append("language", requestedLanguage);
             const response = await fetch("{{ url_for('recognize_speech') }}", {
                 method: "POST",
                 headers: {"X-CSRF-Token": csrfToken},
@@ -346,12 +349,21 @@
             voiceStatus.textContent = "识别完成，请先核对文字，再点击提交答案。";
             input.focus();
         } catch (error) {
-            voiceStatus.textContent = error.message;
+            if (requestedLanguage === "mandarin") {
+                browserFallbackNeeded = true;
+                languageSelect.value = "browser";
+                voiceStatus.textContent = "腾讯云普通话暂时不可用，已切换浏览器。请再说一次成语。";
+            } else {
+                voiceStatus.textContent = error.message;
+            }
         } finally {
             voiceButton.disabled = false;
             voiceButton.textContent = "🎤 点击说成语";
             mediaRecorder = null;
             microphoneStream = null;
+            if (browserFallbackNeeded) {
+                startBrowserRecognition();
+            }
         }
     }
 </script>

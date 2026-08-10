@@ -11,10 +11,12 @@ import statistics
 import unicodedata
 
 import requests
+from opencc import OpenCC
 
 
 TESTS_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = TESTS_ROOT / "results"
+TRADITIONAL_TO_SIMPLIFIED = OpenCC("t2s")
 
 
 def utc_timestamp():
@@ -88,6 +90,9 @@ def normalize_chinese(text):
     脚本在没有人工依据时替识别系统“改对”答案。
     """
     normalized = normalize_raw_transcript(text).replace("〇", "零")
+    # FLEURS 粤语参考文本使用繁体，而腾讯云可能返回简体。先统一到简体，
+    # 避免把“兩/两、週/周”等书写体系差异错误计入识别 CER。
+    normalized = TRADITIONAL_TO_SIMPLIFIED.convert(normalized)
     return "".join(
         character
         for character in normalized

@@ -17,6 +17,9 @@
             <a class="dashboard-rail-link" href="{{ url_for('knowledge_center') }}" title="健康知识">
                 <span aria-hidden="true">📖</span><small>知识</small>
             </a>
+            <a class="dashboard-rail-link" href="{{ url_for('research_datasets') }}" title="测试集与验证记录">
+                <span aria-hidden="true">▦</span><small>数据</small>
+            </a>
             {% if current_user['account_type'] in ['elder', 'admin'] %}
                 <a class="dashboard-rail-link" href="{{ url_for('assistant_page') }}" title="智慧陪伴">
                     <span aria-hidden="true">💬</span><small>陪伴</small>
@@ -67,6 +70,18 @@
                 {% endif %}
             </div>
             <div class="dashboard-top-actions">
+                <form class="dashboard-language-form"
+                      action="{{ url_for('set_language', language='zh' if current_language == 'en' else 'en') }}"
+                      method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button class="dashboard-language-button"
+                            type="submit"
+                            aria-label="{{ '切换到中文' if current_language == 'en' else 'Switch to English' }}">
+                        <span aria-hidden="true">🌐</span>
+                        <strong>{{ '中文' if current_language == 'en' else 'English' }}</strong>
+                    </button>
+                </form>
                 <a class="dashboard-help-link" href="{{ url_for('knowledge_center') }}">
                     <span aria-hidden="true">📚</span> 健康知识
                 </a>
@@ -248,6 +263,11 @@
                         <a class="dashboard-action-row" href="{{ url_for('knowledge_center') }}">
                             <span class="dashboard-action-icon action-green" aria-hidden="true">📚</span>
                             <span><strong>健康知识中心</strong><small>阅读记忆练习、生活安全和健康知识</small></span>
+                            <b aria-hidden="true">→</b>
+                        </a>
+                        <a class="dashboard-action-row" href="{{ url_for('drawing_lab_page') }}">
+                            <span class="dashboard-action-icon action-orange" aria-hidden="true">✍️</span>
+                            <span><strong>绘图评分实验</strong><small>使用触屏或鼠标完成绘图，建立复核训练样本</small></span>
                             <b aria-hidden="true">→</b>
                         </a>
                         <a class="dashboard-action-row" href="{{ url_for('history') }}">

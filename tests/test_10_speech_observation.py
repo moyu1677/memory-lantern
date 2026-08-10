@@ -4,7 +4,7 @@ from array import array
 from io import BytesIO
 from types import SimpleNamespace
 
-from tests.helpers import api_headers, correct_answer
+from tests.helpers import api_headers, correct_answer, drawing_answer_payload
 from speech_analysis import analyze_pcm_bytes, build_speech_summary
 
 
@@ -32,11 +32,19 @@ def test_pause_analysis_extracts_descriptive_features():
 
 def test_summary_never_creates_a_diagnostic_label():
     observation = analyze_pcm_bytes(synthetic_pcm(), transcript="今天星期四")
+    observation.update({
+        "filler_count": 2,
+        "repetition_count": 1,
+        "self_correction_count": 1,
+    })
     summary = build_speech_summary([observation, observation])
 
     assert summary["voice_answer_count"] == 2
     assert summary["valid_sample_count"] == 2
     assert summary["average_pause_count"] == 1.0
+    assert summary["total_filler_count"] == 4
+    assert summary["total_repetition_count"] == 2
+    assert summary["total_self_correction_count"] == 2
     assert "risk" not in summary
     assert "diagnosis" not in summary
 
@@ -115,6 +123,13 @@ def test_completed_assessment_persists_summary_without_audio_or_answer(
             headers=api_headers(token),
         )
         assert response.status_code == 200
+
+    response = client.post(
+        "/test/drawing-answer",
+        json=drawing_answer_payload(),
+        headers=api_headers(token),
+    )
+    assert response.status_code == 201
 
     with app_module.app.app_context():
         assessment = app_module.database.list_assessments(elder["id"])[0]

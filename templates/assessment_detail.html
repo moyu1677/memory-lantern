@@ -56,6 +56,9 @@
                 <div><span>每题平均长停顿次数</span><strong>{{ speech_metrics['average_pause_count'] or 0 }}</strong></div>
                 <div><span>平均有效说话时长</span><strong>{{ ((speech_metrics['average_speech_duration_ms'] or 0) / 1000) | round(1) }}秒</strong></div>
                 <div><span>平均有声占比</span><strong>{{ ((speech_metrics['average_voiced_ratio'] or 0) * 100) | round | int }}%</strong></div>
+                <div><span>语气词次数</span><strong>{{ speech_metrics.get('total_filler_count', 0) }}</strong></div>
+                <div><span>相邻重复次数</span><strong>{{ speech_metrics.get('total_repetition_count', 0) }}</strong></div>
+                <div><span>自我纠正次数</span><strong>{{ speech_metrics.get('total_self_correction_count', 0) }}</strong></div>
             </div>
             <p class="speech-observation-note">这些数据只描述本次录音过程，不参与认知得分，也不能单独判断认知障碍。</p>
         </div>

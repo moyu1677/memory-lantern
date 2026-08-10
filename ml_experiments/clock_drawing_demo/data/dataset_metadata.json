@@ -1,0 +1,16 @@
+{
+  "source_url": "https://github.com/cccnlab/CDT-API-Network/raw/refs/heads/main/clock_shulman.zip",
+  "source_repository": "https://github.com/cccnlab/CDT-API-Network",
+  "source_paper_doi": "10.1038/s41598-023-44723-1",
+  "archive_sha256": "e7896ba9db5fca29fa574706b6c57f27c16cc0e7023fbee8ec52261a957811c5",
+  "class_counts": {
+    "0": 13,
+    "1": 20,
+    "2": 53,
+    "3": 352,
+    "4": 1047,
+    "5": 1623
+  },
+  "total_images": 3108,
+  "license_note": "源仓库页面未显示明确的数据许可证。数据仅保存在本机用于研究验证；重新分发、公开模型或商业使用前须向原作者确认授权。"
+}

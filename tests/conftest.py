@@ -64,6 +64,8 @@ def clean_mutable_state(app_module):
         connection = app_module.database.get_db()
         connection.executescript(
             """
+            DELETE FROM drawing_reviews;
+            DELETE FROM drawing_submissions;
             DELETE FROM messages;
             DELETE FROM care_bindings;
             DELETE FROM knowledge_favorites;
@@ -75,6 +77,8 @@ def clean_mutable_state(app_module):
             DELETE FROM sqlite_sequence
             WHERE name IN (
                 'messages',
+                'drawing_reviews',
+                'drawing_submissions',
                 'care_bindings',
                 'knowledge_favorites',
                 'knowledge_chunks',

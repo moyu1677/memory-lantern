@@ -1,0 +1,14 @@
+timestamp,sample_id,language,environment,category,source,duration_s,audio_path,reference,prediction,http_status,success,latency_s,cer,raw_cer,normalized_cer,audio_duration_ms,speech_duration_ms,pause_count,voiced_ratio,error
+2026-08-07T08:00:00+00:00,DEMO-001,mandarin,quiet,short,synthetic_example,3.1,demo/001.wav,今天阳光很好,今天阳光很好,200,1,1.12,0,0,0,3100,2480,1,0.80,
+2026-08-07T08:00:05+00:00,DEMO-002,mandarin,quiet,short,synthetic_example,3.4,demo/002.wav,老人每天坚持散步,老人每天坚持散步。,200,1,1.25,0,0.111111,0,3400,2700,1,0.79,
+2026-08-07T08:00:10+00:00,DEMO-003,mandarin,quiet,medium,synthetic_example,5.6,demo/003.wav,今天是星期三下午天气很好,今天是星期三下午天气很好,200,1,1.48,0,0,0,5600,4510,2,0.81,
+2026-08-07T08:00:15+00:00,DEMO-004,mandarin,noise,medium,synthetic_example,5.9,demo/004.wav,我准备和家人一起去公园散步,我准备和家人去公园散步,200,1,1.92,0.071429,0.071429,0.071429,5900,4720,3,0.80,
+2026-08-07T08:00:20+00:00,DEMO-005,mandarin,quiet,number_or_date,synthetic_example,4.8,demo/005.wav,今天是二零二六年八月七日,今天是二零二六年八月七日,200,1,1.36,0,0,0,4800,3840,2,0.80,
+2026-08-07T08:00:25+00:00,DEMO-006,mandarin,noise,number_or_date,synthetic_example,5.1,demo/006.wav,请从一百开始连续减去七,请从一百开始连续减七,200,1,2.08,0.083333,0.083333,0.083333,5100,3770,4,0.74,
+2026-08-07T08:00:30+00:00,DEMO-007,mandarin,quiet,long,synthetic_example,8.2,demo/007.wav,保持规律作息有助于维持良好的精神状态,保持规律作息有助于维持良好的精神状态,200,1,1.83,0,0,0,8200,6750,3,0.82,
+2026-08-07T08:00:35+00:00,DEMO-008,mandarin,noise,long,synthetic_example,8.9,demo/008.wav,每天适当运动并与家人交流有助于身心健康,每天适当运动与家人交流有助于身心健康,200,1,2.44,0.052632,0.052632,0.052632,8900,6940,5,0.78,
+2026-08-07T08:00:40+00:00,DEMO-009,mandarin,quiet,semantic_fluency,synthetic_example,7.1,demo/009.wav,苹果香蕉橘子葡萄西瓜,苹果香蕉桔子葡萄西瓜,200,1,1.71,0.1,0.1,0.1,7100,5480,4,0.77,
+2026-08-07T08:00:45+00:00,DEMO-010,mandarin,noise,semantic_fluency,synthetic_example,7.7,demo/010.wav,老虎狮子大象熊猫长颈鹿,老虎狮子大象熊猫,200,1,2.63,0.25,0.25,0.25,7700,5240,6,0.68,
+2026-08-07T08:00:50+00:00,DEMO-011,mandarin,quiet,medium,synthetic_example,5.4,demo/011.wav,请把刚才听到的五个词说出来,请把刚才听到的五个词说出来,200,1,1.39,0,0,0,5400,4210,2,0.78,
+2026-08-07T08:00:55+00:00,DEMO-012,mandarin,noise,long,synthetic_example,9.3,demo/012.wav,遇到困难时可以慢慢想不用着急回答,遇到困难时可以慢慢想不用着急,200,1,2.88,0.105263,0.105263,0.105263,9300,6810,6,0.73,
+2026-08-07T08:01:00+00:00,DEMO-013,mandarin,noise,short,synthetic_example,3.0,demo/013.wav,现在是什么季节,,502,0,3.15,,,,3000,,,,腾讯云连接失败（示例）

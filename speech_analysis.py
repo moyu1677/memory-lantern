@@ -162,6 +162,13 @@ def build_speech_summary(observations):
         ]
         return _round_or_none(sum(values) / len(values)) if values else None
 
+    def total(field):
+        return sum(
+            int(item.get(field) or 0)
+            for item in samples
+            if isinstance(item.get(field, 0), (int, float))
+        )
+
     return {
         "analysis_version": ANALYSIS_VERSION,
         "voice_answer_count": len(samples),
@@ -173,5 +180,8 @@ def build_speech_summary(observations):
         "average_pause_total_ms": average("pause_total_ms"),
         "average_voiced_ratio": average("voiced_ratio"),
         "average_speaking_rate_cpm": average("speaking_rate_cpm"),
+        "total_filler_count": total("filler_count"),
+        "total_repetition_count": total("repetition_count"),
+        "total_self_correction_count": total("self_correction_count"),
         "samples": samples,
     }

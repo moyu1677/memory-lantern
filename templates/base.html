@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ 'en' if current_language == 'en' else 'zh-CN' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,16 +13,19 @@
         <div class="site-header-inner">
             <a class="brand" href="{{ url_for('dashboard') if current_user else url_for('login') }}">
                 <span class="brand-mark" aria-hidden="true">💡</span>
-                <span>忆路明灯</span>
+                <span>{{ _('忆路明灯') }}</span>
             </a>
 
+            <div class="site-header-actions">
             {% if current_user %}
                 <nav class="site-nav" aria-label="主要导航">
                     <a href="{{ url_for('dashboard') }}">首页</a>
                     <a href="{{ url_for('knowledge_center') }}">健康知识</a>
+                    <a href="{{ url_for('research_datasets') }}">测试数据</a>
                     {% if current_user['account_type'] in ['elder', 'admin'] %}
                         <a href="{{ url_for('assistant_page') }}">智慧陪伴</a>
                         <a href="{{ url_for('idiom_game_page') }}">成语接龙</a>
+                        <a href="{{ url_for('drawing_lab_page') }}">绘图实验</a>
                         <a href="{{ url_for('history') }}">历史结果</a>
                     {% endif %}
                     {% if current_user['account_type'] in ['family', 'community'] %}
@@ -32,6 +35,7 @@
                     {% endif %}
                     {% if current_user['role'] == 'admin' %}
                         <a href="{{ url_for('admin_users') }}">用户管理</a>
+                        <a href="{{ url_for('admin_drawings') }}">绘图复核</a>
                         <a href="{{ url_for('admin_knowledge') }}">知识管理</a>
                         <a href="{{ url_for('admin_rag_documents') }}">RAG文档</a>
                     {% endif %}
@@ -41,6 +45,15 @@
                     </form>
                 </nav>
             {% endif %}
+                <form class="language-switcher" action="{{ url_for('set_language', language='zh' if current_language == 'en' else 'en') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                    <button type="submit" aria-label="{{ '切换到中文' if current_language == 'en' else 'Switch to English' }}">
+                        <span aria-hidden="true">🌐</span>
+                        {{ '中文' if current_language == 'en' else 'English' }}
+                    </button>
+                </form>
+            </div>
         </div>
     </header>
 

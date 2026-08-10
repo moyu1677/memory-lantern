@@ -23,6 +23,11 @@ def parse_args(description):
     parser.add_argument("--password", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="只测试清单中的前N条；用于正式批量测试前的连通性验证。",
+    )
     return parser.parse_args()
 
 
@@ -42,6 +47,10 @@ def run_language_benchmark(language, output_filename, args):
         row for row in manifest
         if row.get("language", "").strip().lower() == language
     ]
+    if args.limit is not None:
+        if args.limit <= 0:
+            raise ValueError("--limit 必须大于0。")
+        selected = selected[:args.limit]
     if not selected:
         raise RuntimeError(f"清单中没有 language={language} 的样本。")
 

@@ -1,0 +1,4 @@
+# 画钟机器辅助评分的可选依赖。先安装根目录 requirements.txt，再安装本文件。
+numpy
+Pillow
+torch

@@ -157,10 +157,57 @@ python tests/benchmarks/benchmark_12_summarize_mandarin_dataset.py
 ```
 
 生成的 CSV 包含原始 CER、基础规范化 CER、端到端时延以及音频时长、停顿数等
-观测字段；汇总脚本会生成 JSON 和 Markdown。该命令真实调用腾讯云并产生用量。
+观测字段；汇总脚本会生成 JSON、Markdown、综合仪表板、错误分析图和高错误样本
+CSV。该命令真实调用腾讯云并产生用量。
 基础规范化只处理宽度、大小写、空白、标点和“〇/零”，不会使用同义词规则替
 系统纠错。Common Voice 北京子集以青年录音为主，因此只能验证普通话转写链路，
 不能代替老年人真实语音验证，也不能据此声明认知障碍识别效果。
+
+如果尚未完成真实腾讯云测试，可以先用明确标注的示例CSV检查可视化布局：
+
+```powershell
+python tests/benchmarks/benchmark_12_summarize_mandarin_dataset.py `
+  --input tests/data/asr_mandarin_results.example.csv `
+  --prefix mandarin_asr_example `
+  --title "普通话ASR可视化示例（非真实测试结果）"
+```
+
+示例图只用于确认程序和排版，不能作为论文实验结果。正式运行后请使用默认的
+`tests/results/asr_mandarin_dataset_results.csv`生成真实图表。
+
+## 6B. Google FLEURS 粤语公开数据集测试
+
+安装测试依赖后，从 FLEURS 的 `yue_hant_hk` 测试集流式读取固定的前50条，
+不会下载完整粤语数据集：
+
+```powershell
+python -m pip install -r tests/requirements-test.txt
+python tests/datasets/prepare_cantonese_fleurs.py --count 50
+```
+
+生成文件位于：
+
+```text
+tests/datasets/cantonese_fleurs/generated/cantonese_manifest.csv
+tests/datasets/cantonese_fleurs/generated/dataset_summary.json
+tests/datasets/cantonese_fleurs/generated/audio/
+```
+
+本地项目启动并准备老人端测试账号后，执行真实腾讯云粤语识别与可视化：
+
+```powershell
+python tests/benchmarks/benchmark_05_cantonese_asr.py `
+  --base-url http://127.0.0.1:5000 `
+  --username 测试账号 `
+  --password 测试密码 `
+  --manifest tests/datasets/cantonese_fleurs/generated/cantonese_manifest.csv
+
+python tests/benchmarks/benchmark_14_summarize_cantonese_fleurs.py
+```
+
+如果在中国大陆以外运行并收到腾讯云错误 `6001`，需要在腾讯云语音识别控制台
+开通跨境实时流量及相应付费设置，或把测试放到中国大陆网络/服务器运行。未解决
+该错误前，失败结果不能用于计算 CER 或证明识别准确率。
 
 ## 7. 汇总表 3
 

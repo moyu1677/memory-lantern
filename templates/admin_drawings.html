@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}绘图复核队列 · 忆路明灯{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div><span class="dashboard-eyebrow">研究管理</span><h1>绘图复核队列</h1>
+        <p>两名评分者独立打分；意见不一致时由未参与初评的第三人仲裁。</p></div>
+    <a class="button" href="{{ url_for('export_drawing_dataset') }}">导出已形成共识的数据</a>
+</section>
+
+<section class="drawing-warning" role="note">
+    <span aria-hidden="true">⚠️</span><div><strong>评分边界</strong>
+    <p>辅助预测不可替代评分培训。导出的CSV不含姓名和原始图片，只含随机样本号、特征和共识标签。</p></div>
+</section>
+
+{% if submissions %}
+<div class="table-wrap">
+    <table class="data-table drawing-review-table">
+        <thead><tr><th>任务</th><th>提交人</th><th>机器状态</th><th>人工复核</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for item in submissions %}
+            <tr>
+                <td data-label="任务">{{ item['task_type'] | drawing_task_name }}</td>
+                <td data-label="提交人">{{ item['display_name'] }}</td>
+                <td data-label="机器状态">{{ item['machine_status'] | machine_status_name }}</td>
+                <td data-label="人工复核">
+                    {% if item['adjudicated_score'] is not none %}
+                        已仲裁：{{ item['adjudicated_score'] }}分
+                    {% elif item['rater_count'] >= 2 %}
+                        初评：{{ item['rater_scores'] or '待查看' }}
+                    {% else %}
+                        {{ item['rater_count'] }}/2人完成
+                    {% endif %}
+                </td>
+                <td data-label="时间">{{ item['created_at'] | local_datetime }}</td>
+                <td data-label="操作"><a class="button button-small" href="{{ url_for('admin_drawing_review', submission_id=item['id']) }}">查看并评分</a></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<section class="panel empty-state"><h2>暂无待复核绘图</h2><p>老人端提交绘图后会显示在这里。</p></section>
+{% endif %}
+{% endblock %}

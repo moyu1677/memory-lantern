@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{ 'en' if current_language == 'en' else 'zh-CN' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -52,7 +52,7 @@
         }
 
         .chat-container {
-            width: min(880px, 100%);
+            width: min(1180px, 100%);
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -87,6 +87,36 @@
 
         .app-heading {
             min-width: 0;
+        }
+
+        .app-header-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-language-form {
+            margin: 0;
+        }
+
+        .chat-language-button,
+        .large-text-badge {
+            min-height: 48px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .chat-language-button {
+            padding: 10px 15px;
+            color: #173b37;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            background: #fff8dc;
+            box-shadow: 0 8px 18px rgba(15, 50, 46, 0.18);
         }
 
         .app-title {
@@ -134,7 +164,7 @@
         }
 
         .message {
-            max-width: 84%;
+            max-width: 94%;
             padding: 18px 22px;
             border-radius: 22px;
             font-size: clamp(20px, 2.2vw, 23px);
@@ -439,10 +469,13 @@
 
         #user-input {
             width: 100%;
-            min-height: 68px;
+            min-height: 88px;
+            max-height: 180px;
             padding: 12px 20px;
             color: var(--text);
             font-size: 21px;
+            line-height: 1.6;
+            resize: vertical;
             border: 2px solid #aebdb8;
             border-radius: 18px;
             outline: none;
@@ -451,6 +484,108 @@
 
         #user-input::placeholder {
             color: #6f7b78;
+        }
+
+        .chat-container.is-testing .chat-box {
+            padding-top: 22px;
+            padding-bottom: 22px;
+        }
+
+        .chat-container.is-testing .voice-settings {
+            padding-top: 8px;
+            padding-bottom: 8px;
+        }
+
+        .chat-container.is-testing .input-area {
+            padding-top: 10px;
+            padding-bottom: 12px;
+        }
+
+        .clock-answer-card {
+            width: 100%;
+            padding: clamp(16px, 2.5vw, 28px);
+            border: 2px solid #bfd4cd;
+            border-radius: 22px;
+            background: #f7fbf9;
+            box-shadow: 0 8px 22px rgba(37, 76, 66, 0.10);
+            animation: message-arrive 0.32s ease both;
+        }
+
+        .clock-answer-card h2 {
+            margin: 0 0 8px;
+            color: var(--primary-dark);
+            font-size: clamp(22px, 2.6vw, 29px);
+        }
+
+        .clock-answer-card > p {
+            margin: 0 0 16px;
+            color: var(--text-soft);
+            font-size: 17px;
+            line-height: 1.65;
+        }
+
+        .clock-canvas-wrap {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            overflow: hidden;
+            border: 3px solid #77978f;
+            border-radius: 18px;
+            background: #fff;
+            touch-action: none;
+        }
+
+        #test-clock-canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #fff;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .clock-answer-actions {
+            margin-top: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .clock-clear-button {
+            color: #233b37;
+            background: #e3ebe8;
+        }
+
+        .clock-submit-button {
+            margin-left: auto;
+            background: var(--primary);
+        }
+
+        .clock-consent {
+            width: 100%;
+            padding: 12px 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 16px;
+            line-height: 1.55;
+            border-radius: 13px;
+            background: #fff8dc;
+        }
+
+        .clock-consent input {
+            width: 24px;
+            height: 24px;
+            flex: 0 0 24px;
+        }
+
+        .clock-submit-status {
+            flex: 1 1 300px;
+            min-height: 30px;
+            color: var(--danger);
+            font-size: 16px;
+            font-weight: 700;
         }
 
         button {
@@ -661,13 +796,18 @@
 
             #user-input {
                 grid-column: 1 / -1;
-                min-height: 60px;
+                min-height: 78px;
             }
 
             #record-btn,
             #send-btn {
                 width: 100%;
                 min-width: 0;
+            }
+
+            .clock-submit-button {
+                width: 100%;
+                margin-left: 0;
             }
         }
 
@@ -690,7 +830,16 @@
                 <h1 class="app-title">忆路明灯</h1>
                 <p class="app-subtitle">耐心倾听，温暖陪伴 · 支持语音交流与认知测试</p>
             </div>
-            <a class="large-text-badge" href="{{ url_for('dashboard') }}">← 返回首页</a>
+            <div class="app-header-actions">
+                <form class="chat-language-form" action="{{ url_for('set_language', language='zh' if current_language == 'en' else 'en') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                    <button class="chat-language-button" type="submit">
+                        🌐 {{ '中文' if current_language == 'en' else 'English' }}
+                    </button>
+                </form>
+                <a class="large-text-badge" href="{{ url_for('dashboard') }}">← 返回首页</a>
+            </div>
         </header>
 
         <div class="chat-box" id="chat-box" role="log" aria-live="polite">
@@ -712,13 +861,15 @@
                 <button type="button" id="exit-test-btn" class="exit-test" onclick="exitTest()" hidden>退出测试</button>
             </div>
 
-            <div class="voice-settings">
+            <div class="voice-settings" id="voice-settings-row">
                 <div class="setting-copy">
                     <label for="speech-mode">选择说话语言</label>
                     <small>测试时只保存停顿与时长统计，不保存原始录音</small>
                 </div>
                 <select id="speech-mode">
-                    <option value="browser">普通话（浏览器）</option>
+                    {% if current_language == 'en' %}<option value="english">English (browser)</option>{% endif %}
+                    <option value="mandarin">普通话（腾讯云优先，浏览器备用）</option>
+                    <option value="browser">普通话（仅浏览器）</option>
                     <option value="cantonese">粤语（腾讯云）</option>
                     <option value="chaoshan">潮汕话（腾讯云）</option>
                 </select>
@@ -745,16 +896,37 @@
                     </span>
                 </div>
                 <label class="sr-only" for="user-input">输入您想说的话</label>
-                <input type="text" id="user-input" placeholder="请在这里输入内容……"
-                    aria-describedby="input-guide-status" onkeypress="if(event.keyCode==13) sendMessage()">
+                <textarea id="user-input" rows="2" placeholder="请在这里输入内容……"
+                    aria-describedby="input-guide-status"
+                    onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
                 <button type="button" id="record-btn" onclick="toggleRecording()">🎤 点击说话</button>
                 <button type="button" onclick="sendMessage()" id="send-btn">发送文字</button>
             </div>
         </section>
+
+        <template id="clock-answer-template">
+            <section class="clock-answer-card" id="clock-answer-card" aria-label="画钟回答区">
+                <h2>✏️ 请直接在白色画布上作答</h2>
+                <p>请画出表盘、全部数字和指向11点10分的两根指针。可以使用鼠标、触控板或触摸屏。</p>
+                <div class="clock-canvas-wrap">
+                    <canvas id="test-clock-canvas" width="960" height="640" aria-label="画钟题绘图画布"></canvas>
+                </div>
+                <div class="clock-answer-actions">
+                    <button type="button" class="clock-clear-button" id="test-clock-clear">清空重画</button>
+                    <label class="clock-consent">
+                        <input type="checkbox" id="test-clock-consent">
+                        <span>我已阅读并同意保存这张去标识化绘图，用于本次机器辅助评分和人工复核。</span>
+                    </label>
+                    <div class="clock-submit-status" id="test-clock-status" role="status" aria-live="polite"></div>
+                    <button type="button" class="clock-submit-button" id="test-clock-submit">提交画钟</button>
+                </div>
+            </section>
+        </template>
     </main>
 
     <script>
         let isTesting = false;
+        let currentQuestion = null;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const knowledgeToggle = document.getElementById('use-knowledge');
         try {
@@ -785,6 +957,7 @@
 
         function setTestMode(active, progress='') {
             isTesting = active;
+            document.querySelector('.chat-container').classList.toggle('is-testing', active);
             document.getElementById('start-test-btn').hidden = active;
             document.getElementById('exit-test-btn').hidden = !active;
 
@@ -795,6 +968,28 @@
             document.getElementById('user-input').placeholder =
                 active ? '请输入本题答案...' : '输入你想说的话...';
             document.getElementById('knowledge-toggle-row').hidden = active;
+            document.getElementById('voice-settings-row').hidden = active;
+            if (!active) setCurrentQuestion(null);
+        }
+
+        function setCurrentQuestion(question) {
+            currentQuestion = question || null;
+            const existing = document.getElementById('clock-answer-card');
+            if (existing) existing.remove();
+
+            const drawingMode = Boolean(
+                isTesting && currentQuestion?.response_type === 'drawing'
+            );
+            document.querySelector('.input-area').hidden = drawingMode;
+            document.getElementById('voice-settings-row').hidden = isTesting;
+            if (!drawingMode) return;
+
+            const template = document.getElementById('clock-answer-template');
+            const card = template.content.firstElementChild.cloneNode(true);
+            const chatBox = document.getElementById('chat-box');
+            chatBox.appendChild(card);
+            setupClockAnswer(card);
+            card.scrollIntoView({behavior: 'smooth', block: 'start'});
         }
 
         async function startTest() {
@@ -814,6 +1009,7 @@
 
                 setTestMode(true, data.progress);
                 appendMessage(data.reply, 'ai');
+                setCurrentQuestion(data.question);
                 speakText(data.reply);
             } catch (error) {
                 appendMessage(error.message || '测试启动失败，请稍后再试。', 'ai');
@@ -844,6 +1040,7 @@
                 if (data.testing) {
                     setTestMode(true, data.progress);
                     appendMessage(data.reply, 'ai');
+                    setCurrentQuestion(data.question);
                     speakText(data.reply);
                 }
             } catch (error) {
@@ -899,6 +1096,7 @@
                         setTestMode(false);
                     } else {
                         setTestMode(true, data.progress);
+                        setCurrentQuestion(data.question);
                     }
                 }
             } catch (error) {
@@ -907,6 +1105,127 @@
             } finally {
                 sendBtn.disabled = false;
             }
+        }
+
+        function setupClockAnswer(card) {
+            const canvas = card.querySelector('#test-clock-canvas');
+            const context = canvas.getContext('2d');
+            const clearButton = card.querySelector('#test-clock-clear');
+            const submitButton = card.querySelector('#test-clock-submit');
+            const consent = card.querySelector('#test-clock-consent');
+            const status = card.querySelector('#test-clock-status');
+            let strokes = [];
+            let activeStroke = null;
+            let drawing = false;
+            const startedAt = performance.now();
+
+            function resetCanvas() {
+                strokes = [];
+                activeStroke = null;
+                drawing = false;
+                context.save();
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.restore();
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.lineWidth = 7;
+                context.strokeStyle = '#202b2a';
+                status.textContent = '';
+            }
+
+            function pointFromEvent(event) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: (event.clientX - rect.left) * canvas.width / rect.width,
+                    y: (event.clientY - rect.top) * canvas.height / rect.height,
+                    t: performance.now() - startedAt,
+                    p: event.pressure || 0.5
+                };
+            }
+
+            function begin(event) {
+                event.preventDefault();
+                drawing = true;
+                canvas.setPointerCapture(event.pointerId);
+                activeStroke = {points: [pointFromEvent(event)]};
+                strokes.push(activeStroke);
+                context.beginPath();
+                context.moveTo(activeStroke.points[0].x, activeStroke.points[0].y);
+            }
+
+            function move(event) {
+                if (!drawing || !activeStroke) return;
+                event.preventDefault();
+                const point = pointFromEvent(event);
+                activeStroke.points.push(point);
+                context.lineTo(point.x, point.y);
+                context.stroke();
+            }
+
+            function end(event) {
+                if (!drawing) return;
+                event.preventDefault();
+                move(event);
+                drawing = false;
+                activeStroke = null;
+                context.closePath();
+            }
+
+            canvas.addEventListener('pointerdown', begin);
+            canvas.addEventListener('pointermove', move);
+            canvas.addEventListener('pointerup', end);
+            canvas.addEventListener('pointercancel', end);
+            clearButton.addEventListener('click', resetCanvas);
+            resetCanvas();
+
+            submitButton.addEventListener('click', async () => {
+                if (!strokes.length) {
+                    status.textContent = '请先在白色画布上完成画钟。';
+                    return;
+                }
+                if (!consent.checked) {
+                    status.textContent = '请先勾选绘图数据说明。';
+                    return;
+                }
+
+                submitButton.disabled = true;
+                submitButton.textContent = '正在评分…';
+                status.textContent = '正在保存绘图并运行实验模型，请稍候。';
+                try {
+                    const response = await fetch('/test/drawing-answer', {
+                        method: 'POST',
+                        headers: csrfHeaders({'Content-Type': 'application/json'}),
+                        body: JSON.stringify({
+                            canvas_width: canvas.width,
+                            canvas_height: canvas.height,
+                            strokes,
+                            image_png: canvas.toDataURL('image/png'),
+                            research_consent: true
+                        })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || '画钟提交失败');
+
+                    const prediction = data.drawing_result || {};
+                    const predictionText = prediction.score == null
+                        ? '实验模型未给出可靠分数，本题已转人工复核。'
+                        : `实验模型预测：Shulman ${prediction.score}/5（${prediction.score_label || '待复核'}），置信度${Math.round((prediction.confidence || 0) * 100)}%。该结果不是MoCA分数。`;
+                    const fullReply = `${predictionText}\n\n${data.reply}`;
+                    appendMessage(fullReply, 'ai');
+                    speakText(fullReply);
+                    if (data.completed) {
+                        setTestMode(false);
+                    } else {
+                        setTestMode(true, data.progress);
+                        setCurrentQuestion(data.question);
+                    }
+                } catch (error) {
+                    status.textContent = error.message || '画钟提交失败，请稍后再试。';
+                    submitButton.disabled = false;
+                    submitButton.textContent = '提交画钟';
+                }
+            });
         }
 
         function appendMessage(text, sender, isLoading=false, references=[]) {
@@ -987,6 +1306,8 @@
         }
 
         // 使用浏览器内置的语音合成功能朗读 AI 回复
+        const interfaceLanguage = {{ current_language | tojson }};
+
         function speakText(text) {
             if (!text || !('speechSynthesis' in window)) {
                 return;
@@ -997,7 +1318,9 @@
 
             const utterance = new SpeechSynthesisUtterance(text);
             const speechMode = document.getElementById('speech-mode').value;
-            const preferredLanguage = speechMode === 'cantonese' ? 'zh-HK' : 'zh-CN';
+            const preferredLanguage = interfaceLanguage === 'en'
+                ? 'en-GB'
+                : (speechMode === 'cantonese' ? 'zh-HK' : 'zh-CN');
             utterance.lang = preferredLanguage;
             utterance.rate = 1;
             utterance.pitch = 1;
@@ -1008,11 +1331,11 @@
             const exactVoice = voices.find(
                 voice => voice.lang.toLowerCase() === preferredLanguage.toLowerCase()
             );
-            const chineseVoice = exactVoice || voices.find(
-                voice => voice.lang.toLowerCase().startsWith('zh')
+            const matchingVoice = exactVoice || voices.find(
+                voice => voice.lang.toLowerCase().startsWith(interfaceLanguage === 'en' ? 'en' : 'zh')
             );
-            if (chineseVoice) {
-                utterance.voice = chineseVoice;
+            if (matchingVoice) {
+                utterance.voice = matchingVoice;
             }
 
             window.speechSynthesis.speak(utterance);
@@ -1029,6 +1352,11 @@
         let browserTranscript = '';
 
         const cloudSpeechModes = {
+            mandarin: {
+                label: '普通话',
+                filename: 'mandarin.webm',
+                browserFallback: true
+            },
             cantonese: {
                 label: '粤语',
                 filename: 'cantonese.webm'
@@ -1145,6 +1473,7 @@
             const recordBtn = document.getElementById('record-btn');
             const modeInfo = cloudSpeechModes[speechMode];
             const loadingId = appendMessage(`正在识别${modeInfo.label}...`, 'ai', true);
+            let browserFallbackStarted = false;
             recordBtn.disabled = true;
             setInputGuide('正在转成文字', '请稍等片刻，识别完成后会自动发送。');
 
@@ -1168,13 +1497,27 @@
                 await sendMessage();
             } catch (error) {
                 removeMessage(loadingId);
-                appendMessage(
-                    error.message || `${modeInfo.label}识别失败，请再试一次。`,
-                    'ai'
-                );
+                if (modeInfo.browserFallback) {
+                    browserFallbackStarted = true;
+                    document.getElementById('speech-mode').value = 'browser';
+                    recordBtn.disabled = false;
+                    resetRecordButton();
+                    appendMessage(
+                        '腾讯云普通话暂时不可用，已切换到浏览器备用识别。请听到提示后，把刚才的话再说一次。',
+                        'ai'
+                    );
+                    await toggleBrowserRecognition();
+                } else {
+                    appendMessage(
+                        error.message || `${modeInfo.label}识别失败，请再试一次。`,
+                        'ai'
+                    );
+                }
             } finally {
-                recordBtn.disabled = false;
-                resetRecordButton();
+                if (!browserFallbackStarted) {
+                    recordBtn.disabled = false;
+                    resetRecordButton();
+                }
             }
         }
 
@@ -1278,7 +1621,8 @@
             browserTranscript = '';
             await startBrowserAudioCapture();
             speechRecognition = new Recognition();
-            speechRecognition.lang = 'zh-CN';
+            const selectedMode = document.getElementById('speech-mode').value;
+            speechRecognition.lang = selectedMode === 'english' ? 'en-GB' : 'zh-CN';
             speechRecognition.continuous = false;
             speechRecognition.interimResults = false;
             speechRecognition.maxAlternatives = 1;
@@ -1289,7 +1633,7 @@
                 recordBtn.innerText = '🛑 正在聆听...点击停止';
                 recordBtn.style.backgroundColor = '#dc3545';
                 setInputGuide(
-                    '正在听您说普通话',
+                    selectedMode === 'english' ? 'Listening to English' : '正在听您说普通话',
                     '请慢慢说，说完后停顿一下，也可以点击红色按钮停止。',
                     true
                 );
