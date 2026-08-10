@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 DEFAULT_CHECKPOINT = (
-    Path(__file__).resolve().parent
+    Path(__file__).resolve().parents[2]
     / "ml_experiments"
     / "clock_drawing_demo"
     / "outputs"

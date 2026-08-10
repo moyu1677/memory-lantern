@@ -3,7 +3,7 @@
 import re
 import secrets
 
-from database import (
+from memory_lantern.persistence.database import (
     idiom_exists,
     list_idioms_starting,
     random_chainable_idiom,

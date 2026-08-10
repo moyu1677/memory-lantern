@@ -2,7 +2,7 @@
 
 from io import BytesIO
 
-from rag import retrieve_knowledge
+from memory_lantern.knowledge.rag import retrieve_knowledge
 from tests.helpers import api_headers
 
 

@@ -1,6 +1,6 @@
 """口语清洗与规则评分接入测试。"""
 
-from answer_processing import process_spoken_answer
+from memory_lantern.assessment.answer_processing import process_spoken_answer
 from tests.helpers import api_headers
 
 

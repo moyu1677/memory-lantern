@@ -7,7 +7,7 @@ from html.parser import HTMLParser
 import random
 import re
 
-from questions import build_test_questions, score_answer
+from memory_lantern.assessment.questions import build_test_questions, score_answer
 from tests.helpers import api_headers, create_assessment
 
 

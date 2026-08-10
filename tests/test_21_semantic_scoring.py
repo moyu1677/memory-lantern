@@ -4,7 +4,10 @@ import json
 
 import pytest
 
-from semantic_scoring import LocalSemanticScorer, SemanticScore
+from memory_lantern.assessment.semantic_scoring import (
+    LocalSemanticScorer,
+    SemanticScore,
+)
 from tests.helpers import api_headers
 
 

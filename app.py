@@ -34,11 +34,14 @@ from zoneinfo import ZoneInfo
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from answer_processing import process_spoken_answer
-from judgment_scoring import analyze_judgment_answer
-from semantic_scoring import DEFAULT_MODEL_NAME, score_semantic_answer
-import database
-from database import (
+from memory_lantern.assessment.answer_processing import process_spoken_answer
+from memory_lantern.assessment.judgment_scoring import analyze_judgment_answer
+from memory_lantern.assessment.semantic_scoring import (
+    DEFAULT_MODEL_NAME,
+    score_semantic_answer,
+)
+from memory_lantern.persistence import database
+from memory_lantern.persistence.database import (
     bind_elder,
     can_message_contact,
     count_idioms,
@@ -89,7 +92,7 @@ from database import (
     update_user_active,
     update_user_password,
 )
-from questions import (
+from memory_lantern.assessment.questions import (
     QUESTION_BANK_VERSION,
     TEST_QUESTION_COUNT,
     build_test_questions,
@@ -98,28 +101,31 @@ from questions import (
     score_answer,
     total_points,
 )
-from tencent_asr import TencentASRError, recognize_pcm
-from reports import build_assessment_report
-from speech_analysis import analyze_pcm_file, build_speech_summary
-from idiom_game import hints_for, new_game_state, play_turn
-from drawing_scoring import (
+from memory_lantern.integrations.tencent_asr import TencentASRError, recognize_pcm
+from memory_lantern.assessment.reports import build_assessment_report
+from memory_lantern.assessment.speech_analysis import (
+    analyze_pcm_file,
+    build_speech_summary,
+)
+from memory_lantern.games.idiom_game import hints_for, new_game_state, play_turn
+from memory_lantern.drawing.drawing_scoring import (
     DrawingScoringError,
     TASKS as DRAWING_TASKS,
     extract_features as extract_drawing_features,
     normalize_strokes,
     score_drawing_assist,
 )
-from clock_model_service import (
+from memory_lantern.drawing.clock_model_service import (
     DEFAULT_CHECKPOINT as DEFAULT_CLOCK_MODEL_CHECKPOINT,
     score_clock_image,
 )
-from rag import (
+from memory_lantern.knowledge.rag import (
     generate_knowledge_answer,
     is_casual_conversation,
     sync_knowledge_chunks,
 )
-from research_showcase import load_research_showcase
-from i18n import normalise_language, translate, translate_payload
+from memory_lantern.core.research_showcase import load_research_showcase
+from memory_lantern.core.i18n import normalise_language, translate, translate_payload
 
 app = Flask(__name__)
 load_dotenv()

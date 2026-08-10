@@ -5,7 +5,10 @@ from io import BytesIO
 from types import SimpleNamespace
 
 from tests.helpers import api_headers, correct_answer, drawing_answer_payload
-from speech_analysis import analyze_pcm_bytes, build_speech_summary
+from memory_lantern.assessment.speech_analysis import (
+    analyze_pcm_bytes,
+    build_speech_summary,
+)
 
 
 def synthetic_pcm():

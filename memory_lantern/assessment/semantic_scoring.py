@@ -11,7 +11,7 @@ from functools import lru_cache
 import math
 from typing import Callable
 
-from semantic_rubrics import SEMANTIC_RUBRICS, examples_for
+from memory_lantern.assessment.semantic_rubrics import SEMANTIC_RUBRICS
 
 
 DEFAULT_MODEL_NAME = (

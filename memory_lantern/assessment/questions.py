@@ -8,7 +8,7 @@ from datetime import datetime
 import re
 import secrets
 
-from judgment_scoring import analyze_judgment_answer
+from memory_lantern.assessment.judgment_scoring import analyze_judgment_answer
 
 
 MEMORY_SETS = (

@@ -10,7 +10,7 @@
 
 ## 当前版本概览
 
-更新时间：**2026-08-07**
+更新时间：**2026-08-10**
 
 | 模块 | 当前状态 | 说明 |
 | --- | --- | --- |
@@ -25,7 +25,7 @@
 | 健康知识库 | ✅ 原型完成 | 文章审核、RAG文档、来源展示和角色可见范围 |
 | 成语接龙 | ✅ 已完成 | 29,536条本地成语，支持打字及三种语音输入 |
 | 绘图辅助评分 | 🧪 研究链路完成 | 轨迹采集、双人复核、仲裁、匿名导出与可拒判模型接口 |
-| 自动化测试 | ✅ 通过 | 当前完整测试：`37 passed` |
+| 自动化测试 | ✅ 通过 | 当前完整测试：`79 passed`，PR 自动运行 GitHub Actions |
 | 正式部署 | ⏳ 待完成 | 当前仍是 Flask 本地开发模式 |
 
 ## 主要技术
@@ -57,6 +57,14 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+如果需要修改代码和运行自动化测试，改为安装：
+
+```powershell
+python -m pip install -r requirements-dev.txt
+```
+
+数据集、浏览器和性能基准测试使用单独的 `requirements-benchmark.txt`；本地语义模型和绘图模型使用 `requirements-ml.txt`，普通网页启动不要求安装这两组可选依赖。
+
 ### 3. 配置本地环境变量
 
 ```powershell
@@ -86,6 +94,7 @@ http://127.0.0.1:5000
 提交代码前至少运行：
 
 ```powershell
+python -m pip install -r requirements-dev.txt
 python -m pytest -c tests/pytest.ini -q
 ```
 
@@ -96,21 +105,27 @@ python -m pytest -c tests/pytest.ini -q
 
 ```text
 memory-lantern/
-├─ app.py                 # Flask 路由与主要业务流程
-├─ database.py            # SQLite 表结构与数据访问
-├─ questions.py           # 随机认知题库与评分配置
-├─ reports.py             # 专属报告生成规则
-├─ tencent_asr.py         # 腾讯云多方言语音识别
-├─ speech_analysis.py     # 描述性语音行为特征
-├─ drawing_scoring.py    # 绘图特征、可解释基线模型与低置信度拒判
-├─ rag.py                 # 本地知识检索与RAG流程
-├─ idiom_game.py          # 成语接龙规则
+├─ app.py                    # Flask 启动入口、路由与业务编排
+├─ memory_lantern/           # 应用核心 Python 包
+│  ├─ assessment/            # 题库、回答处理、评分、语音指标与报告
+│  ├─ drawing/               # 绘图特征和机器辅助评分
+│  ├─ knowledge/             # 健康知识库和 RAG
+│  ├─ games/                 # 成语接龙
+│  ├─ integrations/          # 腾讯云等第三方服务
+│  ├─ persistence/           # SQLite 表结构和数据访问
+│  └─ core/                  # 国际化与研究展示
 ├─ templates/             # 页面模板
 ├─ static/                # 全局样式与静态资源
 ├─ data/                  # 种子数据；本地数据库不会提交
-├─ tests/                 # 自动化测试、基准测试和测试说明
-└─ docs/                  # 配置、技术文档和任务交接记录
+├─ ml_experiments/        # 与正式业务隔离的模型实验
+├─ scripts/               # 项目维护和模型准备脚本
+├─ tools/                 # 研究数据处理工具
+├─ tests/                 # 自动化测试、数据集管线和基准测试
+├─ docs/                  # 配置、架构、技术与任务交接文档
+└─ .github/               # CI、Pull Request 与 Issue 模板
 ```
+
+详细依赖方向和新增文件放置规则见[代码结构与模块边界](docs/代码结构与模块边界.md)。
 
 ## 团队协作流程
 
@@ -208,10 +223,13 @@ Pull Request 描述可以使用下面的格式：
 ## 项目文档
 
 - [项目配置与运行说明](docs/项目配置与运行说明.md)
+- [代码结构与模块边界](docs/代码结构与模块边界.md)
 - [项目技术文档](docs/项目技术文档.md)
 - [项目任务交接与下一步计划](docs/项目任务交接与下一步计划.md)
 - [普通话公开数据集测试说明](docs/普通话公开数据集测试说明.md)
 - [机器辅助绘图评分说明](docs/机器辅助绘图评分说明.md)
+- [参与开发](CONTRIBUTING.md)
+- [安全说明](SECURITY.md)
 
 ---
 

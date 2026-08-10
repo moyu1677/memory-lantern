@@ -3,7 +3,7 @@
 from collections import Counter
 import random
 
-import questions
+from memory_lantern.assessment import questions
 
 
 def all_question_ids():

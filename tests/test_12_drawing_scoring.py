@@ -5,7 +5,11 @@ from __future__ import annotations
 import base64
 import json
 
-from drawing_scoring import extract_features, predict_with_model, train_centroid_model
+from memory_lantern.drawing.drawing_scoring import (
+    extract_features,
+    predict_with_model,
+    train_centroid_model,
+)
 
 
 PNG_DATA_URL = "data:image/png;base64," + base64.b64encode(

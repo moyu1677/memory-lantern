@@ -1,0 +1,29 @@
+name: Bug 报告
+description: 报告可复现的软件问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 请说明实际结果和预期结果，不要粘贴密钥或真实用户数据。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 登录……\n2. 点击……\n3. 出现……"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      placeholder: Windows 11 / Python 3.12 / Edge
+  - type: textarea
+    id: logs
+    attributes:
+      label: 已脱敏的日志或截图
+      render: shell

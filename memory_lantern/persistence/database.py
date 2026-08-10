@@ -370,7 +370,10 @@ def _seed_idioms(connection):
 
 
 def _seed_knowledge_articles(connection):
-    from knowledge_seed import KNOWLEDGE_ARTICLES, KNOWLEDGE_SEED_VERSION
+    from memory_lantern.knowledge.knowledge_seed import (
+        KNOWLEDGE_ARTICLES,
+        KNOWLEDGE_SEED_VERSION,
+    )
 
     current = connection.execute(
         "SELECT value FROM app_metadata WHERE key = 'knowledge_seed_version'"

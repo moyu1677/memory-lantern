@@ -1,0 +1,6 @@
+-r requirements-dev.txt
+
+playwright>=1.45,<2.0
+matplotlib>=3.8,<4.0
+datasets>=4.0,<5.0
+opencc-python-reimplemented>=0.1.7,<0.2

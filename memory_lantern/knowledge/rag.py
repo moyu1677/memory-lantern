@@ -10,7 +10,7 @@ import math
 import re
 import unicodedata
 
-from database import get_db, utc_now
+from memory_lantern.persistence.database import get_db, utc_now
 
 
 URGENT_PATTERNS = (

@@ -2,7 +2,7 @@
 
 import pytest
 
-from judgment_scoring import analyze_judgment_answer
+from memory_lantern.assessment.judgment_scoring import analyze_judgment_answer
 from tests.helpers import api_headers
 
 
