@@ -36,6 +36,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from answer_processing import process_spoken_answer
 from judgment_scoring import analyze_judgment_answer
+from semantic_scoring import DEFAULT_MODEL_NAME, score_semantic_answer
 import database
 from database import (
     bind_elder,
@@ -142,6 +143,21 @@ app.config["CLOCK_DRAWING_MODEL_PATH"] = os.getenv(
 ) or str(DEFAULT_CLOCK_MODEL_CHECKPOINT)
 app.config["CLOCK_DRAWING_CONFIDENCE_THRESHOLD"] = float(
     os.getenv("CLOCK_DRAWING_CONFIDENCE_THRESHOLD", "0.75")
+)
+app.config["SEMANTIC_SCORING_ENABLED"] = (
+    os.getenv("SEMANTIC_SCORING_ENABLED", "true").lower() == "true"
+)
+app.config["SEMANTIC_MODEL_NAME"] = os.getenv(
+    "SEMANTIC_MODEL_NAME", DEFAULT_MODEL_NAME
+)
+app.config["SEMANTIC_SIMILARITY_THRESHOLD"] = float(
+    os.getenv("SEMANTIC_SIMILARITY_THRESHOLD", "0.55")
+)
+app.config["SEMANTIC_MARGIN_THRESHOLD"] = float(
+    os.getenv("SEMANTIC_MARGIN_THRESHOLD", "0.06")
+)
+app.config["SEMANTIC_MODEL_LOCAL_ONLY"] = (
+    os.getenv("SEMANTIC_MODEL_LOCAL_ONLY", "true").lower() == "true"
 )
 
 # ================= 配置区域 =================
@@ -667,6 +683,10 @@ def finish_or_continue_test(state, acknowledgement="回答已记录。"):
             speech_metrics=build_speech_summary(
                 state.get("speech_observations", [])
             ),
+            scoring_audit={
+                "scored_answers": state.get("scored_answers", []),
+                "judgment_attempts": state.get("judgment_attempts", []),
+            },
         )
         reply = format_result(state)
         test_id = session.pop("test_id", None)
@@ -2058,21 +2078,50 @@ def answer_test():
         language=state.get("ui_language", "zh"),
     )
     judgment_analysis = None
+    semantic_analysis = None
+    resolved_judgment_decision = None
+    judgment_scoring_source = None
     if question.get("type") == "judgment":
         judgment_analysis = analyze_judgment_answer(
             question["id"],
             processed_answer.final_answer,
             language=state.get("ui_language", "zh"),
         )
-        if judgment_analysis.decision in {"conflict", "uncertain"}:
+        resolved_judgment_decision = judgment_analysis.decision
+        judgment_scoring_source = "rules"
+
+        # 规则已经识别出安全、危险或矛盾行为时，以可解释规则为准；
+        # 只有没有命中规则的自由表达才交给本地语义模型。
+        if judgment_analysis.decision == "uncertain":
+            semantic_analysis = score_semantic_answer(
+                question["id"],
+                processed_answer.final_answer,
+                language=state.get("ui_language", "zh"),
+                enabled=app.config["SEMANTIC_SCORING_ENABLED"],
+                model_name=app.config["SEMANTIC_MODEL_NAME"],
+                similarity_threshold=app.config["SEMANTIC_SIMILARITY_THRESHOLD"],
+                margin_threshold=app.config["SEMANTIC_MARGIN_THRESHOLD"],
+                local_files_only=app.config["SEMANTIC_MODEL_LOCAL_ONLY"],
+            )
+            if semantic_analysis.decision in {
+                "correct", "incorrect", "dangerous", "partial"
+            }:
+                resolved_judgment_decision = semantic_analysis.decision
+                judgment_scoring_source = "semantic_model"
+
+        if resolved_judgment_decision in {"conflict", "uncertain", "partial"}:
             clarifications = state.setdefault("judgment_clarifications", {})
             clarification_count = int(clarifications.get(question["id"], 0))
             attempt_record = {
                 "question_id": question["id"],
                 "clarification_number": clarification_count + 1,
+                "resolved_judgment_decision": resolved_judgment_decision,
+                "judgment_scoring_source": judgment_scoring_source,
                 **processed_answer.behavior_metrics(),
                 **judgment_analysis.audit_record(),
             }
+            if semantic_analysis is not None:
+                attempt_record.update(semantic_analysis.audit_record())
             state.setdefault("judgment_attempts", []).append(attempt_record)
 
             pending_observation = state.pop("pending_speech_observation", None)
@@ -2081,6 +2130,8 @@ def answer_test():
                 pending_observation.update({
                     "judgment_decision": judgment_analysis.decision,
                     "judgment_rule_version": judgment_analysis.rule_version,
+                    "resolved_judgment_decision": resolved_judgment_decision,
+                    "judgment_scoring_source": judgment_scoring_source,
                 })
                 state["speech_observations"].append(pending_observation)
             state["pending_speech_observation"] = None
@@ -2101,7 +2152,7 @@ def answer_test():
                     "reply": reply,
                     "question": public_question(state["questions"], index),
                 })
-        earned = question["points"] * judgment_analysis.earned
+        earned = question["points"] if resolved_judgment_decision == "correct" else 0
     else:
         earned = score_answer(question, processed_answer.final_answer)
     state["score"] += earned
@@ -2116,6 +2167,12 @@ def answer_test():
     }
     if judgment_analysis is not None:
         scored_record.update(judgment_analysis.audit_record())
+        scored_record.update({
+            "resolved_judgment_decision": resolved_judgment_decision,
+            "judgment_scoring_source": judgment_scoring_source,
+        })
+    if semantic_analysis is not None:
+        scored_record.update(semantic_analysis.audit_record())
     state["scored_answers"].append(scored_record)
     pending_observation = state.pop("pending_speech_observation", None)
     if pending_observation is not None:

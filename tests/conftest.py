@@ -38,6 +38,8 @@ def app_module():
     os.environ["DATABASE_PATH"] = str(database_path)
     os.environ["FLASK_SECRET_KEY"] = "test-only-secret-key"
     os.environ["SESSION_COOKIE_SECURE"] = "false"
+    # 真实模型属于单独的模型测试；常规功能测试禁止下载外部模型。
+    os.environ["SEMANTIC_SCORING_ENABLED"] = "false"
 
     import app as imported_app
 

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS assessments (
     question_bank_version TEXT,
     question_ids TEXT,
     speech_metrics TEXT,
+    scoring_audit TEXT,
     completed_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
@@ -290,6 +291,10 @@ def init_db():
     if "speech_metrics" not in assessment_columns:
         connection.execute(
             "ALTER TABLE assessments ADD COLUMN speech_metrics TEXT"
+        )
+    if "scoring_audit" not in assessment_columns:
+        connection.execute(
+            "ALTER TABLE assessments ADD COLUMN scoring_audit TEXT"
         )
 
     # 兼容旧数据库：旧管理员仍是后台账号，旧普通用户视为老人账号。
@@ -1449,6 +1454,7 @@ def save_assessment(
     question_bank_version=None,
     question_ids=None,
     speech_metrics=None,
+    scoring_audit=None,
 ):
     connection = get_db()
     cursor = connection.execute(
@@ -1465,8 +1471,9 @@ def save_assessment(
             question_bank_version,
             question_ids,
             speech_metrics,
+            scoring_audit,
             completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             test_session_id,
@@ -1483,6 +1490,9 @@ def save_assessment(
             else None,
             json.dumps(speech_metrics, ensure_ascii=False)
             if speech_metrics is not None
+            else None,
+            json.dumps(scoring_audit, ensure_ascii=False)
+            if scoring_audit is not None
             else None,
             utc_now(),
         ),

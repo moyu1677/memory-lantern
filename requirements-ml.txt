@@ -2,3 +2,5 @@
 numpy
 Pillow
 torch
+# 日常判断题本地多语言语义相似度模型
+sentence-transformers>=3.0,<6
