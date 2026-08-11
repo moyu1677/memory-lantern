@@ -3010,4 +3010,6 @@ def reset_test():
     return jsonify({"testing": False, "reply": "本次测试已退出，可以继续普通聊天。"})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.getenv('FLASK_PORT', '5000'))
+    debug = os.getenv('FLASK_DEBUG', 'true').strip().lower() in {'1', 'true', 'yes'}
+    app.run(host=os.getenv('FLASK_HOST', '127.0.0.1'), debug=debug, port=port)

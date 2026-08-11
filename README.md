@@ -25,7 +25,7 @@
 | 健康知识库 | ✅ 原型完成 | 文章审核、RAG文档、来源展示和角色可见范围 |
 | 成语接龙 | ✅ 已完成 | 29,536条本地成语，支持打字及三种语音输入 |
 | 绘图辅助评分 | 🧪 研究链路完成 | 轨迹采集、双人复核、仲裁、匿名导出与可拒判模型接口 |
-| 自动化测试 | ✅ 通过 | 当前完整测试：`37 passed` |
+| 自动化测试 | ✅ 通过 | 当前完整测试：`94 passed` |
 | 正式部署 | ⏳ 待完成 | 当前仍是 Flask 本地开发模式 |
 
 ## 主要技术
@@ -86,6 +86,25 @@ python app.py
 ```text
 http://127.0.0.1:5000
 ```
+
+### 团队成员统一启动（从 GitHub 获取）
+
+合并到 `main` 后，任何成员都应使用下面这组命令获取同一版本；不要从他人的电脑拷贝 `.env`、数据库或录音文件：
+
+```powershell
+git clone https://github.com/moyu1677/memory-lantern.git
+cd memory-lantern
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe app.py
+```
+
+启动后访问 `http://127.0.0.1:5000`。每位成员只需在自己的 `.env` 填写自己的 `FLASK_SECRET_KEY`；需要联网对话时再填写自己的 `DEEPSEEK_API_KEY`。
+
+如果 5000 端口已经被其他本地程序占用，在启动前执行 `$env:FLASK_PORT = '5055'`，然后访问 `http://127.0.0.1:5055`。
+
+语音陪伴完整演示入口为 `/family` 和 `/elder`。录音识别与授权音色合成依赖受控的远程 ASR 和 IndexTTS2 服务，因此运行该链路的成员还需按 `.env.example` 配置 `ASR_URL`、`ASR_API_KEY`、`INDEXTTS2_URL`、`INDEXTTS2_API_KEY`。这些值由语音服务负责人单独、安全地发放，绝不能提交到 GitHub；未配置时，其他网页和本地流程仍可正常启动。
 
 更完整的安装、密钥、麦克风和常见问题说明见：
 [项目配置与运行说明](docs/项目配置与运行说明.md)。
