@@ -1,5 +1,6 @@
 from flask import (
     Flask,
+    Response,
     abort,
     flash,
     g,
@@ -21,12 +22,16 @@ import io
 import os
 from pathlib import Path
 import hashlib
+import hmac
 import json
 import re
 import secrets
+import shutil
 import sqlite3
 import subprocess
 import tempfile
+import threading
+import time
 import unicodedata
 from urllib.parse import urlsplit
 import uuid
@@ -40,18 +45,22 @@ from semantic_scoring import DEFAULT_MODEL_NAME, score_semantic_answer
 import database
 from database import (
     bind_elder,
+    activate_voice_profile,
     can_message_contact,
     count_idioms,
     count_unread_messages,
     count_assessments,
     create_drawing_submission,
     create_message,
+    create_voice_profile,
     create_user,
     get_assessment,
     get_drawing_submission,
     get_knowledge_article,
+    get_active_voice_profile,
     get_user_by_id,
     get_user_by_username,
+    get_voice_profile,
     is_elder_bound_to,
     list_assessments,
     list_drawing_reviews,
@@ -59,6 +68,8 @@ from database import (
     list_training_drawing_rows,
     list_user_drawing_submissions,
     list_bound_elders,
+    list_care_reports,
+    list_authorized_need_cards,
     list_elder_caregivers,
     list_message_contacts,
     list_messages,
@@ -68,10 +79,14 @@ from database import (
     list_recommended_knowledge,
     list_user_knowledge_submissions,
     list_users_with_stats,
+    list_voice_profiles,
+    mark_voice_profile_used,
     mark_messages_read,
     delete_user_drawing_submission,
     drawing_review_summary,
     save_assessment,
+    save_care_report,
+    save_need_card,
     save_drawing_review,
     set_knowledge_favorite,
     create_knowledge_article,
@@ -88,6 +103,7 @@ from database import (
     update_last_login,
     update_user_active,
     update_user_password,
+    delete_voice_profile,
 )
 from questions import (
     QUESTION_BANK_VERSION,
@@ -99,6 +115,8 @@ from questions import (
     total_points,
 )
 from tencent_asr import TencentASRError, recognize_pcm
+from needs_engine import bounded_history, decide_next_action, extract_session_card
+from care_report_engine import generate_care_report
 from reports import build_assessment_report
 from speech_analysis import analyze_pcm_file, build_speech_summary
 from idiom_game import hints_for, new_game_state, play_turn
@@ -120,6 +138,8 @@ from rag import (
 )
 from research_showcase import load_research_showcase
 from i18n import normalise_language, translate, translate_payload
+from voice_service import RemoteVoiceService, VoiceServiceError, validate_reference_audio
+from asr_service import RemoteAsrService, AsrServiceError
 
 app = Flask(__name__)
 load_dotenv()
@@ -159,6 +179,11 @@ app.config["SEMANTIC_MARGIN_THRESHOLD"] = float(
 app.config["SEMANTIC_MODEL_LOCAL_ONLY"] = (
     os.getenv("SEMANTIC_MODEL_LOCAL_ONLY", "true").lower() == "true"
 )
+CARE_REPORT_VALIDATION_PATH = (
+    Path(__file__).resolve().parent
+    / "validation"
+    / "care_report_validation_latest.json"
+)
 
 # ================= 配置区域 =================
 # 1. DeepSeek 大模型配置
@@ -170,6 +195,9 @@ TENCENT_ASR_SECRET_ID = os.getenv("TENCENT_ASR_SECRET_ID")
 TENCENT_ASR_SECRET_KEY = os.getenv("TENCENT_ASR_SECRET_KEY")
 TENCENT_ASR_ENGINE = os.getenv("TENCENT_ASR_ENGINE", "16k_zh_en")
 TENCENT_ASR_ENGINES = {
+    # The public companion demo defaults to its browser-recognition path;
+    # older assessment endpoints retain the explicit Mandarin key below.
+    "browser": TENCENT_ASR_ENGINE,
     # 普通话使用腾讯云作为主链路，产品页面在云端不可用时回退到
     # 浏览器 Web Speech API；离线数据集测试只评价腾讯云主链路。
     "mandarin": os.getenv(
@@ -186,11 +214,17 @@ TENCENT_ASR_ENGINES = {
     ),
 }
 SPEECH_LANGUAGE_LABELS = {
+    "browser": "普通话",
     "mandarin": "普通话",
     "chaoshan": "潮汕话",
     "cantonese": "粤语",
 }
-FFMPEG_PATH = Path(__file__).with_name("ffmpeg.exe")
+_configured_ffmpeg = os.getenv("FFMPEG_PATH", "").strip()
+FFMPEG_PATH = Path(
+    _configured_ffmpeg or shutil.which("ffmpeg") or Path(__file__).with_name("ffmpeg.exe")
+)
+voice_service = RemoteVoiceService.from_environment()
+asr_service = RemoteAsrService.from_environment()
 
 # ===========================================
 
@@ -199,6 +233,33 @@ database.init_app(app)
 # 原型阶段将测试进度保存在服务进程内，避免把老人回答写入浏览器 Cookie。
 TEST_SESSIONS = {}
 IDIOM_GAME_SESSIONS = {}
+# Conversation state is short-lived and intentionally never persists raw audio
+# or full dialogue. Tokens prevent a browser from synthesising arbitrary text
+# in a relative's authorised voice.
+VOICE_CHAT_SESSIONS = {}
+VOICE_REPLY_TOKEN_TTL_SECONDS = 180
+VOICE_REPLY_LOCK = threading.Lock()
+AUDIO_DEMO_SESSIONS = {}
+AUDIO_DEMO_LOCK = threading.RLock()
+
+AUDIO_DEMO_EMOTIONS = {
+    "温和陪伴": {"style": "neutral", "strength": 0.0},
+    "轻微明朗": {"style": "positive", "strength": 0.32},
+    "轻微安抚": {"style": "comfort", "strength": 0.38},
+    "轻微关切": {"style": "comfort", "strength": 0.30},
+}
+AUDIO_DEMO_DELIVERY_TONES = {"neutral", "positive", "comfort", "concern"}
+AUDIO_DEMO_ASSISTANT_PROMPT = (
+    "你是温和、真诚、容易理解的中文陪伴助手。与老人自然聊天，关系和陪伴"
+    "永远先于推动任何目标。先接住对方此刻说的话和情绪，再根据需要给出有用、"
+    "不越界的回应。不要催促、盘问或作医疗诊断；不补充对方没有说过的事实。"
+    "遇到健康、安全或明确求助时，先关切回应，说明不能诊断，再平静建议联系"
+    "家人、信赖的人或专业人士。直接说自然的对话文本，不添加舞台提示。"
+)
+AUDIO_DEMO_TONE_OUTPUT_INSTRUCTION = (
+    '请只输出 JSON：{"reply":"给老人看的自然回复",'
+    '"tone":"neutral|positive|comfort|concern"}。无法确定时选 neutral。'
+)
 
 # 初始化 DeepSeek 客户端。DeepSeek 兼容 OpenAI Chat Completions 接口。
 deepseek_client = OpenAI(
@@ -344,6 +405,17 @@ def caregiver_required(view):
     @login_required
     def wrapped_view(*args, **kwargs):
         if g.current_user["account_type"] not in {"family", "community"}:
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+def family_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if g.current_user["account_type"] != "family":
             abort(403)
         return view(*args, **kwargs)
 
@@ -535,22 +607,250 @@ def extract_uploaded_knowledge(file, extension):
     raise ValueError("只支持TXT、Markdown、DOCX和可提取文字的PDF。")
 
 
-def get_ai_reply(user_text, system_prompt):
+def get_ai_reply(user_text, system_prompt, history=None):
     """调用 DeepSeek，并返回最终回复文本。"""
     if not DEEPSEEK_API_KEY:
         raise RuntimeError("未配置 DEEPSEEK_API_KEY，请检查项目根目录下的 .env 文件")
 
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(bounded_history(history))
+    messages.append({"role": "user", "content": user_text})
     completion = deepseek_client.chat.completions.create(
         model=DEEPSEEK_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text},
-        ],
+        messages=messages,
         stream=False,
         # V4 默认开启思考；普通聊天关闭思考可减少等待时间。
         extra_body={"thinking": {"type": "disabled"}},
     )
     return completion.choices[0].message.content
+
+
+def load_care_report_validation():
+    """Load only aggregate validation results, never source conversations."""
+
+    try:
+        payload = json.loads(CARE_REPORT_VALIDATION_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def parse_audio_demo_reply(raw_reply):
+    """Accept a provider JSON envelope without ever speaking JSON aloud."""
+
+    raw = str(raw_reply or "").strip()
+    candidate = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw).strip()
+    try:
+        payload = json.loads(candidate)
+    except (TypeError, ValueError):
+        return raw, None
+    if not isinstance(payload, dict):
+        return raw, None
+    reply = str(payload.get("reply") or "").strip()
+    tone = str(payload.get("tone") or "").strip().lower()
+    return (reply or raw), tone if reply and tone in AUDIO_DEMO_DELIVERY_TONES else None
+
+
+def get_audio_demo_reply(user_text, history=None):
+    """Generate the reply and its bounded delivery category in one request."""
+
+    messages = [{
+        "role": "system",
+        "content": AUDIO_DEMO_ASSISTANT_PROMPT + AUDIO_DEMO_TONE_OUTPUT_INSTRUCTION,
+    }]
+    if history:
+        messages.extend(bounded_history(history))
+    messages.append({"role": "user", "content": user_text})
+    if DEEPSEEK_API_KEY:
+        try:
+            completion = deepseek_client.chat.completions.create(
+                model=DEEPSEEK_MODEL,
+                messages=messages,
+                stream=False,
+                response_format={"type": "json_object"},
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            reply, tone = parse_audio_demo_reply(completion.choices[0].message.content)
+            if reply:
+                return reply, tone
+        except Exception:
+            app.logger.warning("音频陪伴 JSON 回复模式不可用，使用文本回退。")
+    return parse_audio_demo_reply(
+        get_ai_reply(user_text, AUDIO_DEMO_ASSISTANT_PROMPT, history=history)
+    )
+
+
+def get_audio_demo_state():
+    state_id = session.get("audio_demo_state_id")
+    if not state_id:
+        state_id = secrets.token_urlsafe(24)
+        session["audio_demo_state_id"] = state_id
+    now = datetime.now().timestamp()
+    with AUDIO_DEMO_LOCK:
+        state = AUDIO_DEMO_SESSIONS.get(state_id)
+        if state is None or now - state["updated_at"] > 30 * 60:
+            state = {"history": [], "updated_at": now}
+            AUDIO_DEMO_SESSIONS[state_id] = state
+        state["updated_at"] = now
+    return state
+
+
+def audio_demo_emotion_anchor_ready(voice, style):
+    if style == "neutral":
+        return True
+    column = {"positive": "positive_emotion_ready", "comfort": "comfort_emotion_ready"}.get(style)
+    return bool(voice is not None and column and voice[column])
+
+
+def infer_audio_demo_reply_tone(reply_text):
+    reply = str(reply_text or "")
+    if re.search(r"真替您高兴|听到这个消息真好|值得高兴|太好了|跟着高兴", reply):
+        return "positive"
+    if re.search(r"听起来.*(不容易|难受|辛苦)|我在这(里|儿)陪着您|不用独自承受|空落落", reply):
+        return "comfort"
+    if re.search(r"不着急|先歇一会儿|慢慢来|注意休息", reply):
+        return "concern"
+    return None
+
+
+def select_audio_demo_emotion(user_text, reply_text="", voice=None, delivery_tone=None):
+    labels = {
+        "neutral": "温和陪伴", "positive": "轻微明朗",
+        "comfort": "轻微安抚", "concern": "轻微关切",
+    }
+    requested = str(delivery_tone or "").strip().lower()
+    if requested not in labels:
+        requested = infer_audio_demo_reply_tone(reply_text)
+    if requested not in labels:
+        user = str(user_text or "")
+        if re.search(r"特别开心|非常开心|真高兴|太高兴|团聚|过生日|好消息|恭喜", user):
+            requested = "positive"
+        elif re.search(r"很难过|伤心|想念.*(家人|孩子)|孤单|害怕|睡不着|失眠|疼得|很不舒服|委屈", user):
+            requested = "comfort"
+        elif re.search(r"担心|着急|不安|不知道.*怎么办|麻烦|太累", user):
+            requested = "concern"
+        else:
+            requested = "neutral"
+    selected = AUDIO_DEMO_EMOTIONS[labels[requested]]
+    anchor_ready = audio_demo_emotion_anchor_ready(voice, selected["style"])
+    return {
+        "label": labels[requested],
+        "style": selected["style"] if anchor_ready else "neutral",
+        "strength": selected["strength"] if anchor_ready else 0.0,
+        "anchor_ready": anchor_ready,
+    }
+
+
+def build_audio_demo_speech_plan(user_text, reply_text, voice=None, delivery_tone=None):
+    return {
+        "emotion": select_audio_demo_emotion(
+            user_text, reply_text, voice, delivery_tone=delivery_tone
+        ),
+        "segments": None,
+    }
+
+
+def issue_audio_demo_reply_token(reply_text, voice, user_text="", delivery_tone=None):
+    state = get_audio_demo_state()
+    token = secrets.token_urlsafe(32)
+    plan = build_audio_demo_speech_plan(user_text, reply_text, voice, delivery_tone)
+    with AUDIO_DEMO_LOCK:
+        state["pending_reply"] = {
+            "token": token,
+            "text": str(reply_text or "").strip(),
+            "voice_id": voice["remote_voice_id"],
+            "voice_record_id": voice["id"],
+            "emotion": plan["emotion"],
+            "expires_at": datetime.now().timestamp() + VOICE_REPLY_TOKEN_TTL_SECONDS,
+            "used": False,
+        }
+    return token
+
+
+def consume_audio_demo_reply_token(token):
+    with AUDIO_DEMO_LOCK:
+        state = get_audio_demo_state()
+        pending = state.get("pending_reply")
+        supplied = str(token or "").strip()
+        if not pending or not supplied:
+            return None, "请先完成一轮对话，再播放回复。"
+        if pending.get("expires_at", 0) < datetime.now().timestamp():
+            state.pop("pending_reply", None)
+            return None, "这轮回复已过期，请重新说一次。"
+        if pending.get("used") or not hmac.compare_digest(str(pending.get("token") or ""), supplied):
+            return None, "这轮回复不能重复播放。"
+        pending["used"] = True
+        return pending, None
+
+
+def get_voice_chat_state(user_id):
+    now = datetime.now().timestamp()
+    state = VOICE_CHAT_SESSIONS.get(user_id)
+    if state is None or now - state["updated_at"] > 30 * 60:
+        state = {"session_id": uuid.uuid4().hex, "stage": "normal", "history": [], "updated_at": now}
+        VOICE_CHAT_SESSIONS[user_id] = state
+    return state
+
+
+def issue_voice_reply_token(user_id, reply_text):
+    state = get_voice_chat_state(user_id)
+    token = secrets.token_urlsafe(32)
+    state["pending_voice_reply"] = {
+        "token": token,
+        "text": str(reply_text or "").strip(),
+        "expires_at": datetime.now().timestamp() + VOICE_REPLY_TOKEN_TTL_SECONDS,
+        "used": False,
+    }
+    return token
+
+
+def consume_voice_reply_token(user_id, token):
+    with VOICE_REPLY_LOCK:
+        state = get_voice_chat_state(user_id)
+        pending = state.get("pending_voice_reply")
+        supplied = str(token or "").strip()
+        if not pending or not supplied:
+            return None, "请先完成一轮对话，再播放助手回复。"
+        if pending.get("expires_at", 0) < datetime.now().timestamp():
+            state.pop("pending_voice_reply", None)
+            return None, "这轮回复已过期，请重新发送消息后再播放。"
+        if pending.get("used") or not hmac.compare_digest(str(pending.get("token") or ""), supplied):
+            return None, "这轮回复不能重复或无授权播放。"
+        pending["used"] = True
+        return pending, None
+
+
+def companion_chat_reply(user_id, user_input):
+    state = get_voice_chat_state(user_id)
+    state["history"].append({"role": "user", "content": user_input})
+    decision = decide_next_action(state["stage"], user_input)
+    state["stage"] = decision.next_stage
+    card_saved = False
+    if decision.should_extract:
+        try:
+            card = extract_session_card(deepseek_client, DEEPSEEK_MODEL, state["history"])
+            if card:
+                save_need_card(user_id, state["session_id"], card)
+                card_saved = True
+        except Exception:
+            app.logger.exception("已授权需求卡提取失败")
+        reply = (
+            "好的，我会只记下您同意分享的这件事，不分享完整聊天或录音。"
+            if card_saved else "现在还没能整理成家属卡，所以不会向家属显示；我们先继续聊。"
+        )
+    else:
+        guidance = decision.instruction or "正常陪伴聊天即可。不要把闲聊理解为需求，不要主动盘问、诊断或替老人下结论。"
+        reply = get_ai_reply(
+            user_input,
+            "你是“忆路明灯”的语音陪伴助手。请用温和、简短、容易理解的中文回应老人，通常不超过三句。"
+            "只依据老人明确说过的话，不作医疗、心理或能力判断。" + guidance,
+            history=state["history"][:-1],
+        )
+    state["history"].append({"role": "assistant", "content": reply})
+    state["history"] = bounded_history(state["history"], limit=10)
+    state["updated_at"] = datetime.now().timestamp()
+    return reply, card_saved
 
 
 def public_question(questions, index):
@@ -717,6 +1017,249 @@ def home():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/family")
+def audio_demo_family():
+    """Public, consent-first family voice-library demonstration."""
+
+    return render_template(
+        "audio_demo_family.html",
+        voices=database.list_audio_demo_voices(),
+        voice_service_configured=voice_service.configured,
+    )
+
+
+@app.route("/family/voices", methods=["POST"])
+def audio_demo_enroll_voice():
+    label = unicodedata.normalize("NFKC", str(request.form.get("label") or "")).strip()[:40]
+    sample = request.files.get("reference_audio")
+    if not voice_service.configured:
+        flash("远程语音服务尚未连接。", "error")
+    elif not label:
+        flash("请给这条声音取一个名称。", "error")
+    elif request.form.get("voice_consent") != "on":
+        flash("请先确认声音所有者已明确授权。", "error")
+    elif sample is None or not sample.filename:
+        flash("请录制或上传一段声音样本。", "error")
+    else:
+        try:
+            validate_reference_audio(sample.filename, sample.mimetype)
+            remote_voice_id = voice_service.enroll(
+                sample.stream, sample.filename, sample.mimetype, label
+            )
+            try:
+                database.create_audio_demo_voice(label, remote_voice_id)
+            except Exception:
+                voice_service.delete_voice(remote_voice_id)
+                raise
+        except VoiceServiceError as exc:
+            flash(str(exc), "error")
+        else:
+            flash("声音已保存，并设为老人端当前声音。", "success")
+    return redirect(url_for("audio_demo_family"))
+
+
+@app.route("/family/voices/<int:voice_id>/emotion-references", methods=["POST"])
+def audio_demo_enroll_emotion_reference(voice_id):
+    voice = database.get_audio_demo_voice(voice_id)
+    style = str(request.form.get("emotion_style") or "").strip().lower()
+    sample = request.files.get("emotion_audio")
+    if voice is None:
+        flash("未找到这条家人声音。", "error")
+    elif style not in {"positive", "comfort"}:
+        flash("请选择有效的情感样本类型。", "error")
+    elif request.form.get("emotion_consent") != "on":
+        flash("请先确认声音所有者同意将这条样本用于陪伴语音表达。", "error")
+    elif sample is None or not sample.filename:
+        flash("请录制或上传一段情感样本。", "error")
+    else:
+        try:
+            validate_reference_audio(sample.filename, sample.mimetype)
+            voice_service.enroll_emotion_reference(
+                voice["remote_voice_id"], style, sample.stream, sample.filename, sample.mimetype
+            )
+            if not database.save_audio_demo_emotion_reference(voice_id, style):
+                raise RuntimeError("声音库记录未能更新")
+        except (VoiceServiceError, ValueError) as exc:
+            flash(str(exc), "error")
+        except Exception:
+            app.logger.exception("家人情感样本登记失败")
+            flash("情感样本暂时无法保存，请稍后重试。", "error")
+        else:
+            flash("情感样本已保存，系统会按回复内容克制地使用。", "success")
+    return redirect(url_for("audio_demo_family"))
+
+
+@app.route("/family/voices/<int:voice_id>/activate", methods=["POST"])
+def audio_demo_activate_voice(voice_id):
+    flash(
+        "已切换为老人端当前声音。" if database.activate_audio_demo_voice(voice_id) else "未找到这条声音。",
+        "success" if database.get_audio_demo_voice(voice_id) else "error",
+    )
+    return redirect(url_for("audio_demo_family"))
+
+
+@app.route("/family/voices/<int:voice_id>/delete", methods=["POST"])
+def audio_demo_delete_voice(voice_id):
+    voice = database.get_audio_demo_voice(voice_id)
+    if voice is None:
+        flash("未找到这条声音。", "error")
+    else:
+        try:
+            voice_service.delete_voice(voice["remote_voice_id"])
+        except VoiceServiceError as exc:
+            flash(str(exc), "error")
+        else:
+            database.delete_audio_demo_voice(voice_id)
+            flash("声音已从声音库和远端服务删除。", "success")
+    return redirect(url_for("audio_demo_family"))
+
+
+def _audio_response(audio: bytes, content_type: str, server_timing: str | None = None):
+    response = Response(audio, mimetype=content_type)
+    response.headers["Cache-Control"] = "no-store, private"
+    response.headers["Content-Disposition"] = "inline; filename=assistant-reply.wav"
+    if server_timing:
+        response.headers["Server-Timing"] = server_timing
+    return response
+
+
+@app.route("/audio/preview", methods=["POST"])
+def audio_demo_preview_voice():
+    try:
+        voice_id = int((request.get_json(silent=True) or {}).get("voice_id") or 0)
+    except (TypeError, ValueError):
+        voice_id = 0
+    voice = database.get_audio_demo_voice(voice_id)
+    if voice is None:
+        return jsonify({"error": "未找到这条声音。"}), 404
+    try:
+        audio, content_type = voice_service.synthesize(
+            voice["remote_voice_id"], "您好，我会用这条声音陪老人慢慢聊天。"
+        )
+    except VoiceServiceError as exc:
+        return jsonify({"error": str(exc)}), 503
+    database.mark_audio_demo_voice_used(voice_id)
+    return _audio_response(audio, content_type)
+
+
+@app.route("/elder")
+def audio_demo_elder():
+    voice = database.get_active_audio_demo_voice()
+    return render_template(
+        "audio_demo_elder.html",
+        voice_profile_label=voice["label"] if voice else None,
+    )
+
+
+class AudioTranscriptionError(RuntimeError):
+    def __init__(self, message, status_code):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def transcribe_audio_file(audio_file, language):
+    selected_language = str(language or "browser").strip().lower()
+    if selected_language not in TENCENT_ASR_ENGINES:
+        raise AudioTranscriptionError("不支持所选的语音类型。", 400)
+    if selected_language == "browser":
+        try:
+            return asr_service.transcribe(
+                audio_file.stream, audio_file.filename, audio_file.mimetype
+            ), selected_language
+        except AsrServiceError as exc:
+            raise AudioTranscriptionError(str(exc), 503) from exc
+    if not all([TENCENT_ASR_APP_ID, TENCENT_ASR_SECRET_ID, TENCENT_ASR_SECRET_KEY]):
+        raise AudioTranscriptionError("腾讯云方言识别尚未配置。", 503)
+    if not FFMPEG_PATH.exists():
+        raise AudioTranscriptionError("项目中缺少 ffmpeg，无法转换方言录音。", 500)
+    suffix = Path(audio_file.filename).suffix.lower()
+    if suffix not in {".wav", ".mp3", ".m4a", ".webm", ".ogg"}:
+        suffix = ".webm"
+    try:
+        with tempfile.TemporaryDirectory(prefix="memory_lantern_asr_") as directory:
+            input_path, pcm_path = Path(directory) / f"recording{suffix}", Path(directory) / "recording.pcm"
+            audio_file.save(input_path)
+            conversion = subprocess.run(
+                [str(FFMPEG_PATH), "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-ar", "16000", "-ac", "1", "-f", "s16le", str(pcm_path)],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            if conversion.returncode != 0 or not pcm_path.exists():
+                raise AudioTranscriptionError("录音格式转换失败，请重新录音。", 400)
+            transcript = recognize_pcm(pcm_path, TENCENT_ASR_APP_ID, TENCENT_ASR_SECRET_ID, TENCENT_ASR_SECRET_KEY, TENCENT_ASR_ENGINES[selected_language])
+    except AudioTranscriptionError:
+        raise
+    except subprocess.TimeoutExpired as exc:
+        raise AudioTranscriptionError("录音转换超时，请缩短录音后重试。", 504) from exc
+    except TencentASRError as exc:
+        raise AudioTranscriptionError(str(exc), 502) from exc
+    except Exception as exc:
+        app.logger.exception("方言 ASR 处理失败")
+        raise AudioTranscriptionError("语音识别处理失败，请稍后再试。", 500) from exc
+    if not transcript:
+        raise AudioTranscriptionError("没有识别到清晰的语音，请靠近麦克风后再说一次。", 422)
+    return transcript, selected_language
+
+
+@app.route("/audio/recognize", methods=["POST"])
+def audio_demo_recognize():
+    started_at = time.perf_counter()
+    audio_file = request.files.get("audio")
+    if audio_file is None or not audio_file.filename:
+        return jsonify({"error": "没有收到录音文件。"}), 400
+    try:
+        transcript, language = transcribe_audio_file(audio_file, request.form.get("language", "browser"))
+    except AudioTranscriptionError as exc:
+        return jsonify({"error": str(exc)}), exc.status_code
+    response = jsonify({"text": transcript, "language": language})
+    response.headers["Server-Timing"] = f"asr;dur={round((time.perf_counter() - started_at) * 1000)}"
+    return response
+
+
+@app.route("/audio/chat", methods=["POST"])
+def audio_demo_chat():
+    payload = request.get_json(silent=True) or {}
+    user_input = str(payload.get("message") or "").strip()
+    if not user_input:
+        return jsonify({"error": "没有收到消息。"}), 400
+    if len(user_input) > 2000:
+        return jsonify({"error": "单次对话不能超过2000个字。"}), 400
+    state = get_audio_demo_state()
+    try:
+        reply, delivery_tone = get_audio_demo_reply(user_input, history=state["history"][-8:])
+    except Exception:
+        app.logger.exception("音频 demo 聊天请求失败")
+        return jsonify({"error": "服务暂时无法回答，请稍后再试。"}), 503
+    state["history"] = (state["history"] + [{"role": "user", "content": user_input}, {"role": "assistant", "content": reply}])[-10:]
+    state["updated_at"] = datetime.now().timestamp()
+    voice = database.get_active_audio_demo_voice()
+    response = jsonify({
+        "reply": reply,
+        "voice_reply_token": issue_audio_demo_reply_token(reply, voice, user_input, delivery_tone) if voice else None,
+    })
+    response.headers["X-Audio-Delivery-Mode"] = delivery_tone or infer_audio_demo_reply_tone(reply) or "neutral"
+    return response
+
+
+@app.route("/audio/synthesize", methods=["POST"])
+def audio_demo_synthesize():
+    pending, error = consume_audio_demo_reply_token((request.get_json(silent=True) or {}).get("reply_token"))
+    if error:
+        return jsonify({"error": error}), 400
+    started_at = time.perf_counter()
+    try:
+        audio, content_type = voice_service.synthesize(
+            pending["voice_id"], pending["text"],
+            emotion_strength=pending["emotion"]["strength"],
+            emotion_style=pending["emotion"]["style"],
+        )
+    except VoiceServiceError as exc:
+        with AUDIO_DEMO_LOCK:
+            pending["used"] = False
+        return jsonify({"error": str(exc)}), 503
+    database.mark_audio_demo_voice_used(pending["voice_record_id"])
+    return _audio_response(audio, content_type, f"tts;dur={round((time.perf_counter() - started_at) * 1000)}")
+
+
 @app.route("/language/<language>", methods=["POST"])
 def set_language(language):
     session["ui_language"] = normalise_language(language)
@@ -855,6 +1398,112 @@ def dashboard():
             else []
         ),
     )
+
+
+@app.route("/voice-profiles", methods=["GET", "POST"])
+@family_required
+def voice_profiles_page():
+    """Family-only, revocable registration of a remote voice reference."""
+
+    elders = list_bound_elders(g.current_user["id"])
+    allowed_elder_ids = {elder["id"] for elder in elders}
+    if request.method == "POST":
+        action = str(request.form.get("action") or "enroll").strip()
+        try:
+            elder_id = int(request.form.get("elder_id") or 0)
+        except (TypeError, ValueError):
+            elder_id = 0
+        if elder_id not in allowed_elder_ids:
+            abort(403)
+        if action == "activate":
+            try:
+                profile_id = int(request.form.get("profile_id") or 0)
+            except (TypeError, ValueError):
+                profile_id = 0
+            profile = get_voice_profile(profile_id)
+            if profile is None or profile["elder_id"] != elder_id or profile["created_by"] != g.current_user["id"]:
+                abort(403)
+            flash("已切换为这位家人的声音。" if activate_voice_profile(elder_id, profile_id) else "未找到声音档案。", "success")
+            return redirect(url_for("voice_profiles_page"))
+        label = unicodedata.normalize("NFKC", str(request.form.get("label") or "")).strip()[:40]
+        sample = request.files.get("reference_audio")
+        if not label:
+            flash("请填写这位家人的称呼，例如“儿子小明”。", "error")
+        elif request.form.get("voice_consent") != "on":
+            flash("需要先确认声音所有者已明确授权。", "error")
+        elif sample is None or not sample.filename:
+            flash("请上传一段家人本人录制的声音样本。", "error")
+        else:
+            try:
+                validate_reference_audio(sample.filename, sample.mimetype)
+                remote_voice_id = voice_service.enroll(sample.stream, sample.filename, sample.mimetype, label)
+                try:
+                    create_voice_profile(elder_id, g.current_user["id"], label, remote_voice_id)
+                except Exception:
+                    voice_service.delete_voice(remote_voice_id)
+                    raise
+            except VoiceServiceError as exc:
+                flash(str(exc), "error")
+            else:
+                flash("声音测试已完成并设为当前陪伴声音；原始音频只保存在远程语音服务器。", "success")
+                return redirect(url_for("voice_profiles_page"))
+    return render_template(
+        "voice_profiles.html",
+        elders=elders,
+        profiles_by_elder={elder["id"]: list_voice_profiles(elder["id"], g.current_user["id"]) for elder in elders},
+        voice_service_configured=voice_service.configured,
+    )
+
+
+@app.route("/voice-profiles/<int:profile_id>/revoke", methods=["POST"])
+@family_required
+def revoke_voice_profile(profile_id):
+    profile = get_voice_profile(profile_id)
+    if profile is None or profile["created_by"] != g.current_user["id"] or not is_elder_bound_to(g.current_user["id"], profile["elder_id"]):
+        abort(403)
+    try:
+        voice_service.delete_voice(profile["remote_voice_id"])
+    except VoiceServiceError as exc:
+        flash(str(exc), "error")
+    else:
+        delete_voice_profile(profile_id)
+        flash("已撤回声音授权，远端参考音频和本地音色编号均已删除。", "success")
+    return redirect(url_for("voice_profiles_page"))
+
+
+@app.route("/family-briefs")
+@family_required
+def family_briefs():
+    return render_template(
+        "family_briefs.html",
+        elders=list_bound_elders(g.current_user["id"]),
+        reports=list_care_reports(g.current_user["id"]),
+    )
+
+
+@app.route("/family-briefs/<int:elder_id>/generate", methods=["POST"])
+@family_required
+def generate_family_brief(elder_id):
+    caregiver_id = g.current_user["id"]
+    if not is_elder_bound_to(caregiver_id, elder_id):
+        abort(403)
+    state = VOICE_CHAT_SESSIONS.get(elder_id)
+    history = state.get("history", []) if state else []
+    if not history:
+        flash("这位老人最近还没有可用于生成报告的聊天内容。", "error")
+        return redirect(url_for("family_briefs"))
+    try:
+        report = generate_care_report(deepseek_client, DEEPSEEK_MODEL, history)
+    except Exception:
+        app.logger.exception("家庭关怀报告生成失败：elder_id=%s", elder_id)
+        flash("报告暂时生成失败，请稍后再试。", "error")
+        return redirect(url_for("family_briefs"))
+    if not report:
+        flash("本次聊天内容还不足以形成可靠的关怀提示，请在更多自然聊天后再生成。", "error")
+        return redirect(url_for("family_briefs"))
+    save_care_report(elder_id, state.get("session_id", "unknown"), report)
+    flash("已生成一份不含聊天原话的家庭关怀报告。", "success")
+    return redirect(url_for("family_briefs"))
 
 
 @app.route("/research/datasets")
@@ -1139,6 +1788,15 @@ def admin_rag_documents():
     )
 
 
+@app.route("/admin/care-report-validation")
+@admin_required
+def admin_care_report_validation():
+    return render_template(
+        "admin_care_report_validation.html",
+        validation=load_care_report_validation(),
+    )
+
+
 @app.route("/admin/rag-documents/upload", methods=["POST"])
 @admin_required
 def admin_upload_rag_document():
@@ -1269,7 +1927,52 @@ def admin_reindex_rag_documents():
 def assistant_page():
     if g.current_user["account_type"] in {"family", "community"}:
         abort(403)
-    return render_template("index.html")
+    profile = get_active_voice_profile(g.current_user["id"])
+    return render_template(
+        "index.html",
+        voice_profile_label=profile["label"] if profile else None,
+    )
+
+
+@app.route("/voice/preview", methods=["POST"])
+@family_required
+def preview_family_voice():
+    try:
+        profile_id = int((request.get_json(silent=True) or {}).get("profile_id") or 0)
+    except (TypeError, ValueError):
+        profile_id = 0
+    profile = get_voice_profile(profile_id)
+    if profile is None or not is_elder_bound_to(g.current_user["id"], profile["elder_id"]) or profile["created_by"] != g.current_user["id"]:
+        abort(403)
+    try:
+        audio, content_type = voice_service.synthesize(
+            profile["remote_voice_id"], "您好，我会陪家里老人慢慢聊天。"
+        )
+    except VoiceServiceError as exc:
+        return jsonify({"error": str(exc)}), 503
+    mark_voice_profile_used(profile_id)
+    return _audio_response(audio, content_type)
+
+
+@app.route("/voice/synthesize", methods=["POST"])
+@elder_required
+def synthesize_assistant_reply():
+    profile = get_active_voice_profile(g.current_user["id"])
+    if profile is None:
+        return jsonify({"error": "还没有可用的家人声音。请让已绑定家属先完成声音授权测试。"}), 409
+    pending_reply, token_error = consume_voice_reply_token(
+        g.current_user["id"], (request.get_json(silent=True) or {}).get("reply_token")
+    )
+    if token_error:
+        return jsonify({"error": token_error}), 400
+    try:
+        audio, content_type = voice_service.synthesize(profile["remote_voice_id"], pending_reply["text"])
+    except VoiceServiceError as exc:
+        with VOICE_REPLY_LOCK:
+            pending_reply["used"] = False
+        return jsonify({"error": str(exc)}), 503
+    mark_voice_profile_used(profile["id"])
+    return _audio_response(audio, content_type)
 
 
 @app.route("/games/idiom")
@@ -1872,6 +2575,32 @@ def chat():
         }), 500
 
 
+@app.route('/voice/chat', methods=['POST'])
+@elder_required
+def voice_chat():
+    """Authenticated elder conversation with consent-first need extraction."""
+
+    user_input = str((request.get_json(silent=True) or {}).get("message") or "").strip()
+    if not user_input:
+        return jsonify({"error": "没有收到消息。"}), 400
+    if len(user_input) > 2000:
+        return jsonify({"error": "单次对话不能超过2000个字。"}), 400
+    try:
+        reply, card_saved = companion_chat_reply(g.current_user["id"], user_input)
+    except Exception:
+        app.logger.exception("语音陪伴聊天请求处理失败")
+        return jsonify({"error": "服务暂时无法回答，请稍后再试。"}), 500
+    profile = get_active_voice_profile(g.current_user["id"])
+    return jsonify({
+        "reply": reply,
+        "conversation_mode": "voice_companion",
+        "need_card_saved": card_saved,
+        "voice_reply_token": (
+            issue_voice_reply_token(g.current_user["id"], reply) if profile else None
+        ),
+    })
+
+
 @app.route('/speech/recognize', methods=['POST'])
 @login_required
 def recognize_speech():
@@ -2281,4 +3010,6 @@ def reset_test():
     return jsonify({"testing": False, "reply": "本次测试已退出，可以继续普通聊天。"})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.getenv('FLASK_PORT', '5000'))
+    debug = os.getenv('FLASK_DEBUG', 'true').strip().lower() in {'1', 'true', 'yes'}
+    app.run(host=os.getenv('FLASK_HOST', '127.0.0.1'), debug=debug, port=port)

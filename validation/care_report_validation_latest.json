@@ -1,0 +1,65 @@
+{
+  "schema_version": "3.0",
+  "evaluation_name": "家庭关怀报告扩展最终验证",
+  "evaluated_at": "2026-08-11T05:46:21+08:00",
+  "model": "deepseek-v4-flash",
+  "thinking_mode": "enabled",
+  "case_set": {
+    "files": [
+      "tests/benchmarks/care_report_final_extended_cases.json",
+      "tests/benchmarks/care_report_expanded_additional_cases.json"
+    ],
+    "type": "运行前冻结的中文多轮任务案例：心理陪伴、日常协助、安全提示、克制、改写、干扰和后续解决",
+    "case_count": 48,
+    "runs_per_case": 3,
+    "total_api_calls": 144
+  },
+  "metrics": {
+    "valid_structured_reports": {"passed": 140, "total": 144, "percent": 97.2},
+    "category": {"true_positive": 64, "false_positive": 3, "false_negative": 8, "precision_percent": 95.5, "recall_percent": 88.9, "f1_percent": 92.1},
+    "correct_refrain_when_no_signal": {"passed": 72, "total": 72, "percent": 100.0},
+    "positive_exact_match": {"passed": 63, "total": 72, "percent": 87.5},
+    "action_type_exact_match": {"passed": 135, "total": 144, "percent": 93.8},
+    "paired_robustness": {"passed": 45, "total": 48, "percent": 93.8},
+    "case_level_stability": {"passed": 45, "total": 48, "percent": 93.8},
+    "guardrail_output_gate": {"passed": 10, "total": 10},
+    "api_errors": 0,
+    "mean_latency_seconds": 3.122,
+    "max_latency_seconds": 20.149
+  },
+  "carecall_domain_audit": {
+    "dataset": "CareCall for Seniors translated samples",
+    "sample": "60 段老年用户—系统对话：validated 30 段 + fixed 30 段；每段 1 次",
+    "total_api_calls": 60,
+    "valid_structured_reports": {"passed": 58, "total": 60, "percent": 96.7},
+    "status_counts": {"signals_present": 12, "insufficient_or_conflicting": 46, "invalid_or_rejected": 2},
+    "area_presence_counts": {"psychological": 7, "physical_or_daily": 9},
+    "mean_latency_seconds": 5.005,
+    "boundary": "CareCall 面向老年对话，但公开样本由 LLM 生成并有人类支持，且没有家庭关怀需求真值；它只检验老年领域输入上的运行、结构和保守分布，不计入准确率。"
+  },
+  "esconv_psychological_audit": {
+    "dataset": "ESConv public corpus",
+    "sample": "32 段未缓解的负性情感支持对话：持续低落、工作危机、分手、朋友关系问题各 8 段；每段 2 次",
+    "total_api_calls": 64,
+    "valid_structured_reports": {"passed": 64, "total": 64, "percent": 100.0},
+    "psychological_signal_rate_percent": 84.4,
+    "by_stratum_percent": {"持续低落": 87.5, "工作危机": 68.8, "分手": 93.8, "朋友关系": 87.5},
+    "mean_latency_seconds": 11.586,
+    "boundary": "ESConv 的标签是情感支持问题和情绪，不是老人、家人行动或潜在需求真值；它只检验多个情感支持场景的心理线索敏感性，不计入主集 F1。"
+  },
+  "boundaries": [
+    "主指标只证明系统在事先写定答案的受控案例上，能识别、克制、选择行动类别并抵抗部分表达变化；不代表真实老人群体准确率、临床结论或医疗诊断能力。",
+    "最终主集有 8 次类别漏报、3 次额外类别；其中“外出陪伴”与“日常协助”的边界是主要分歧。安全规则拒绝医疗化措辞时会保守地不形成报告。",
+    "程序闸门会拒绝诊断、医疗化建议、长原话复述、无效来源和不匹配的行动类型；家人页面不展示聊天原文、来源轮次或技术标签。",
+    "CareCall 与 ESConv 的标签范围与本项目不同，所以只分别用于领域覆盖和心理迁移检查，不能替代主集，也不能替代真实老人家庭场景的长期研究。"
+  ],
+  "evidence_files": [
+    "tests/results/care_report_expanded_quality_20260811_052830.jsonl",
+    "tests/results/care_report_expanded_quality_20260811_052830_summary.json",
+    "tests/results/care_report_carecall_domain_20260811_053345.jsonl",
+    "tests/results/care_report_carecall_domain_20260811_053345_summary.json",
+    "tests/results/care_report_esconv_stratified_20260811_054621.jsonl",
+    "tests/results/care_report_esconv_stratified_20260811_054621_summary.json",
+    "聊天关怀报告模块/聊天关怀报告模块最终说明.md"
+  ]
+}

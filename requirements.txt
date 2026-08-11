@@ -4,3 +4,5 @@ python-dotenv
 websocket-client
 python-docx
 pypdf
+requests
+tzdata

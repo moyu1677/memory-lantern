@@ -1,0 +1,310 @@
+{
+  "version": "1.0-expanded-additions",
+  "purpose": "与 24 例主冻结集拼接使用的额外 24 例中文案例。全部在任何本轮模型调用前写定，用于扩大任务覆盖；不用于提示词调参或训练。",
+  "cases": [
+    {
+      "id": "extra_psych_video_contact",
+      "group": "clear_psychological_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["contact_companionship"],
+      "history": [
+        {"role": "user", "content": "最近孙女放学后总是很忙，我怕打扰她。"},
+        {"role": "assistant", "content": "您会想和她聊聊吗？"},
+        {"role": "user", "content": "要是她周末能和我视频几分钟，给我讲讲学校的事，我就很高兴。"}
+      ]
+    },
+    {
+      "id": "extra_psych_handcraft_activity",
+      "group": "clear_psychological_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["shared_activity"],
+      "history": [
+        {"role": "user", "content": "我把旧毛线找出来了，想学织个小围巾。"},
+        {"role": "assistant", "content": "听起来很有意思。"},
+        {"role": "user", "content": "一个人照着视频总学不会，家里人有空陪我做一次，我就敢继续学。"}
+      ]
+    },
+    {
+      "id": "extra_psych_visit_activity",
+      "group": "clear_psychological_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["shared_activity"],
+      "history": [
+        {"role": "user", "content": "老同事约我去看展览，我其实挺想去。"},
+        {"role": "assistant", "content": "是什么让您犹豫呢？"},
+        {"role": "user", "content": "路不熟，一个人去心里没底；孩子若愿意陪我走一趟就好了。"}
+      ]
+    },
+    {
+      "id": "extra_psych_contact_hesitant",
+      "group": "clear_psychological_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["contact_companionship"],
+      "history": [
+        {"role": "user", "content": "这阵子总觉得家里人有自己的事情。"},
+        {"role": "assistant", "content": "您想让他们怎么做？"},
+        {"role": "user", "content": "不用特地跑回来，偶尔主动问我一句吃得好不好，我会觉得被惦记着。"}
+      ]
+    },
+    {
+      "id": "extra_daily_phone_support",
+      "group": "clear_physical_or_daily_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "医院挂号的小程序又改了，我找不到原来的按钮。"},
+        {"role": "assistant", "content": "您需要什么时候处理？"},
+        {"role": "user", "content": "下周要用，孩子来时帮我把常用入口放到首页就行。"}
+      ]
+    },
+    {
+      "id": "extra_daily_hearing_support",
+      "group": "clear_physical_or_daily_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "电视遥控器的字太小，我总按错。"},
+        {"role": "assistant", "content": "会影响您看节目吗？"},
+        {"role": "user", "content": "想请家里人帮我贴几个大一点的标记，这样自己也能用。"}
+      ]
+    },
+    {
+      "id": "extra_safety_stairs",
+      "group": "clear_physical_or_daily_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["safety_check"],
+      "history": [
+        {"role": "user", "content": "今天下楼时楼梯有点湿，我扶着扶手才慢慢下来。"},
+        {"role": "assistant", "content": "现在回家了吗？"},
+        {"role": "user", "content": "回来了，不过这两天不太敢自己走那段路，想让家里人先知道。"}
+      ]
+    },
+    {
+      "id": "extra_safety_bathroom",
+      "group": "clear_physical_or_daily_extra",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["safety_check"],
+      "history": [
+        {"role": "user", "content": "洗澡时地垫总会卷起来，我刚才差点踩空。"},
+        {"role": "assistant", "content": "您有没有受伤？"},
+        {"role": "user", "content": "没有，但我想等家里人来时一起看看怎么弄稳妥些。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_cooking_enjoyed",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "中午自己做了番茄鸡蛋面，味道不错。"},
+        {"role": "assistant", "content": "您经常做吗？"},
+        {"role": "user", "content": "常做，厨房用着都顺手，明天还想换个做法。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_family_already_supports",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "前几天手机声音太小，我一度听不清。"},
+        {"role": "assistant", "content": "现在好了吗？"},
+        {"role": "user", "content": "孩子已经调好了，还教会我怎么调，我现在用得挺顺。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_news_chat",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "今天看了一篇讲古建筑的文章，挺长见识。"},
+        {"role": "assistant", "content": "哪一部分最有意思？"},
+        {"role": "user", "content": "屋顶的做法很巧，我还想找几张照片仔细看看。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_walk_safe",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "傍晚去公园走了两圈。"},
+        {"role": "assistant", "content": "路上顺利吗？"},
+        {"role": "user", "content": "很顺利，公园就在家旁边，我每天都熟门熟路地去。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_declined_app",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "手机上的缴费程序看着有点复杂。"},
+        {"role": "assistant", "content": "要不要让家人看看？"},
+        {"role": "user", "content": "不用，我已经查了说明并交好了，下次也能自己处理。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_social_satisfied",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "邻居最近不常在家。"},
+        {"role": "assistant", "content": "会不会觉得冷清？"},
+        {"role": "user", "content": "不会，我每周都和老朋友去跳舞，日子安排得很满。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_ambiguous_body",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "早上起得比平常晚一点。"},
+        {"role": "assistant", "content": "感觉怎么样？"},
+        {"role": "user", "content": "没什么特别的，可能只是昨晚电影看得晚，今天精神也很好。"}
+      ]
+    },
+    {
+      "id": "extra_abstain_radio_hobby",
+      "group": "abstain_extra",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "我把收音机里常听的节目都存好了。"},
+        {"role": "assistant", "content": "这样找起来会方便很多。"},
+        {"role": "user", "content": "是啊，自己按几下就能听，挺有意思的。"}
+      ]
+    },
+    {
+      "id": "extra_paraphrase_phone",
+      "group": "paired_paraphrase_extra",
+      "paired_with": "extra_daily_phone_support",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "手机里的预约页面更新以后，我不会操作了。"},
+        {"role": "assistant", "content": "需要人帮忙设置吗？"},
+        {"role": "user", "content": "下次家里人来时把预约入口弄得好找一点，我以后自己点就行。"}
+      ]
+    },
+    {
+      "id": "extra_distractor_stairs",
+      "group": "paired_distractor_extra",
+      "paired_with": "extra_safety_stairs",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["safety_check"],
+      "history": [
+        {"role": "user", "content": "今天阳台的兰花开了，颜色很好看。"},
+        {"role": "assistant", "content": "真不错。"},
+        {"role": "user", "content": "不过楼梯潮湿时我只能扶着扶手走，这两天不敢独自下楼，想让家人先知道。"}
+      ]
+    },
+    {
+      "id": "extra_reversal_phone_resolved",
+      "group": "paired_reversal_extra",
+      "paired_with": "extra_daily_phone_support",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "昨天我一时找不到预约程序的按钮。"},
+        {"role": "assistant", "content": "后来找到了吗？"},
+        {"role": "user", "content": "客服已经教会我设置快捷方式了，现在自己能操作，不需要家人再管。"}
+      ]
+    },
+    {
+      "id": "extra_reversal_stairs_resolved",
+      "group": "paired_reversal_extra",
+      "paired_with": "extra_safety_stairs",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "昨天楼梯湿时我有点担心。"},
+        {"role": "assistant", "content": "现在呢？"},
+        {"role": "user", "content": "物业已经处理干了，我今天走过很稳当，暂时不用担心。"}
+      ]
+    },
+    {
+      "id": "extra_paraphrase_companionship",
+      "group": "paired_paraphrase_extra",
+      "paired_with": "extra_psych_video_contact",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["contact_companionship"],
+      "history": [
+        {"role": "user", "content": "孩子们平时工作忙，我也不愿意总去催。"},
+        {"role": "assistant", "content": "您希望怎样联系？"},
+        {"role": "user", "content": "他们空下来主动和我聊聊近况就好，不用花很长时间。"}
+      ]
+    },
+    {
+      "id": "extra_distractor_handcraft",
+      "group": "paired_distractor_extra",
+      "paired_with": "extra_psych_handcraft_activity",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["shared_activity"],
+      "history": [
+        {"role": "user", "content": "今天早餐吃得很好，天气也暖和。"},
+        {"role": "assistant", "content": "那真好。"},
+        {"role": "user", "content": "我想学织围巾却总学不会，要是家里人陪我做一次，我会更愿意坚持。"}
+      ]
+    },
+    {
+      "id": "extra_reversal_contact_declined",
+      "group": "paired_reversal_extra",
+      "paired_with": "extra_psych_video_contact",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "前几天想和孙女视频说说话。"},
+        {"role": "assistant", "content": "现在还想联系吗？"},
+        {"role": "user", "content": "不用安排，她刚刚已经和我聊了很久，我现在很满足。"}
+      ]
+    },
+    {
+      "id": "extra_reversal_bathroom_fixed",
+      "group": "paired_reversal_extra",
+      "paired_with": "extra_safety_bathroom",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "洗澡间的地垫昨天卷起来过。"},
+        {"role": "assistant", "content": "现在处理了吗？"},
+        {"role": "user", "content": "已经换成防滑垫，也请人固定好了，现在不用再为这件事操心。"}
+      ]
+    }
+  ]
+}

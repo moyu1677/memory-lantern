@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}家庭关怀报告 · 忆路明灯{% endblock %}
+{% block content %}
+<section class="page-heading"><h1>家庭关怀报告</h1><p>仅汇总已完成聊天中的稳定关怀信号；不展示聊天原话、原始录音，也不作医疗或心理诊断。</p></section>
+<section class="panel"><h2>生成报告</h2>{% for elder in elders %}<article class="family-brief-row"><strong>{{ elder['display_name'] }}</strong><form method="post" action="{{ url_for('generate_family_brief', elder_id=elder['id']) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button>根据近期聊天生成</button></form></article>{% else %}<p>先绑定一位老人账户，才能生成关怀报告。</p>{% endfor %}</section>
+<section class="panel"><h2>已生成的报告</h2>{% for report in reports %}<article class="family-report-item"><p>{{ report['elder_name'] }} · {{ report['created_at']|local_datetime }}</p>{% if report['status'] == 'signals_present' %}<h3>{{ report['summary'] }}</h3>{% for signal in report['signals'] %}<div class="care-report-signal"><p><strong>{{ {'psychological': '心理与陪伴', 'physical_or_daily': '生活与身体'}[signal['area']] }}</strong> · {{ signal['topic'] }}</p><p>建议：{{ signal['family_action'] }}</p></div>{% endfor %}{% else %}<h3>暂不形成关怀提示</h3><p>{{ report['summary'] }}</p>{% endif %}</article>{% else %}<p>还没有报告。完成几次自然聊天后，可以由家人在这里主动生成。</p>{% endfor %}</section>
+{% endblock %}

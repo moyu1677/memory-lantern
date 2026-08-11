@@ -1,0 +1,36 @@
+# 无翻译同声克隆系统 - 默认配置
+
+# ========== ASR配置 ==========
+asr:
+  model_size: "small"  # tiny, base, small, medium, large
+  language: "zh"       # 中文识别
+  device: "cuda"       # cuda 或 cpu
+
+# ========== TTS配置 ==========
+tts:
+  base_url: "http://127.0.0.1:5000"
+  api_key_env: "INDEXTTS2_API_KEY"
+
+# ========== 对话模型配置 ==========
+chat:
+  api_base_url: "https://api.deepseek.com/v1"
+  api_key_env: "CHAT_API_KEY"
+  model: "deepseek-chat"
+
+# ========== 音频分离配置 ==========
+audio_separation:
+  model: "htdemucs"  # Demucs模型
+  device: "cuda"     # cuda 或 cpu
+
+# ========== 路径配置 ==========
+paths:
+  input_dir: "data/input_videos"
+  output_dir: "data/output"
+  temp_dir: "data/temp"
+
+# ========== 输出配置 ==========
+output:
+  save_intermediate: true  # 是否保存中间结果
+  video_codec: "libx264"   # 视频编码
+  audio_codec: "aac"       # 音频编码
+  video_bitrate: "5000k"   # 视频比特率

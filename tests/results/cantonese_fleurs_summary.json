@@ -1,0 +1,15 @@
+{
+  "provenance": "Published aggregate recorded in the project evaluation material; raw recordings and per-sample transcripts are intentionally not stored in the repository.",
+  "scope": "Google FLEURS Cantonese public read-speech subset. This is an ASR engineering measurement, not older-adult spontaneous speech, cognitive accuracy, or clinical evidence.",
+  "overall": {
+    "samples": 50,
+    "successful": 50,
+    "success_rate_percent": 100.0,
+    "character_accuracy_percent": 93.62,
+    "normalized_cer_percent": 6.38,
+    "raw_cer_percent": 6.38,
+    "perfect_transcription_rate_percent": 0.0,
+    "latency_mean_s": 11.68,
+    "latency_p95_s": 19.93
+  }
+}

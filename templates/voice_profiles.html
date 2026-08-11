@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}家人声音授权 · 忆路明灯{% endblock %}
+{% block content %}
+<section class="page-heading"><h1>家人端 · 声音库</h1><p>为已绑定老人登记一条经本人授权的远程声音。原始音频不存入本应用，可随时撤回。</p></section>
+{% for elder in elders %}
+<section class="panel"><h2>{{ elder['display_name'] }}的授权声音</h2>
+  {% if voice_service_configured %}<form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="elder_id" value="{{ elder['id'] }}"><label>家人称呼 <input name="label" maxlength="40" required></label><label>声音样本 <input name="reference_audio" type="file" accept="audio/*" required></label><label><input name="voice_consent" type="checkbox" value="on" required> 我确认声音所有者已明确授权。</label><button type="submit">登记声音</button></form>{% else %}<p>远程语音服务尚未连接。</p>{% endif %}
+  {% for profile in profiles_by_elder[elder['id']] %}<article class="voice-profile-card"><strong>{{ profile['label'] }}</strong>{% if profile['is_active'] %} · 当前声音{% endif %}<p>登记人：{{ profile['creator_name'] }} · {{ profile['created_at']|local_datetime }}</p>{% if not profile['is_active'] %}<form method="post"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="elder_id" value="{{ elder['id'] }}"><input type="hidden" name="profile_id" value="{{ profile['id'] }}"><input type="hidden" name="action" value="activate"><button>设为当前声音</button></form>{% endif %}<form method="post" action="{{ url_for('revoke_voice_profile', profile_id=profile['id']) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button-danger">撤回并删除</button></form></article>{% else %}<p>尚未登记声音。</p>{% endfor %}
+</section>{% else %}<section class="panel"><p>请先绑定一位老人账户，再登记声音。</p></section>{% endfor %}
+{% endblock %}
