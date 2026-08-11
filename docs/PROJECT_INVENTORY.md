@@ -5,7 +5,7 @@
 ## 已同步
 
 - 主 Web 应用：认知测评、知识库、绘画、多语言、语音陪伴和家庭关怀报告。
-- 语音链路：受授权声纹档案、远程 ASR/TTS、公开双页演示、短时一次性朗读令牌、粤语/潮汕话回退。
+- 语音链路：受授权声纹档案、远程 ASR/TTS、四角色受权限保护入口、短时一次性朗读令牌、粤语/潮汕话回退。
 - 内容提取链路：显式同意后的需求卡、隐私受限的家庭报告、聚合验证页和测试夹具。
 - 项目总设计与调研说明：见 [`project/`](project/)；模块级资料见 [`modules/`](modules/)。
 - 独立的 GPU 语音原型：见 [`../prototypes/cross-language-voice-clone/`](../prototypes/cross-language-voice-clone/)。

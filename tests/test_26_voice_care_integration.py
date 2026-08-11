@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from types import SimpleNamespace
 
 from tests.helpers import api_headers
@@ -69,6 +70,36 @@ def test_voice_synthesis_rejects_forged_text_and_allows_the_issued_reply_once(
     assert calls == [("voice-test-002", "慢慢来，不着急。")]
     assert forged.status_code == 400
     assert repeated.status_code == 400
+
+
+def test_voice_recognition_uses_the_authenticated_companion_route(
+    app_module, client, login_as, user_factory, monkeypatch
+):
+    elder = user_factory(account_type="elder")
+    family = user_factory(account_type="family")
+    monkeypatch.setattr(
+        app_module,
+        "asr_service",
+        SimpleNamespace(transcribe=lambda *_args, **_kwargs: "识别成功"),
+    )
+
+    elder_token = login_as(client, elder["id"])
+    response = client.post(
+        "/voice/recognize",
+        data={"audio": (BytesIO(b"audio"), "recording.webm")},
+        content_type="multipart/form-data",
+        headers=api_headers(elder_token),
+    )
+    assert response.status_code == 200
+    assert response.get_json() == {"text": "识别成功", "language": "browser"}
+
+    family_token = login_as(client, family["id"])
+    assert client.post(
+        "/voice/recognize",
+        data={"audio": (BytesIO(b"audio"), "recording.webm")},
+        content_type="multipart/form-data",
+        headers=api_headers(family_token),
+    ).status_code == 403
 
 
 def test_bound_family_can_generate_a_privacy_bounded_report(
