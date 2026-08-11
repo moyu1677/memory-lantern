@@ -40,9 +40,9 @@
                 system-ui, sans-serif;
             color: var(--text);
             background:
-                radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.95), transparent 30%),
-                radial-gradient(circle at 88% 85%, rgba(214, 231, 224, 0.8), transparent 28%),
-                var(--page-bg);
+                radial-gradient(circle at 14% 16%, rgba(196, 225, 218, 0.52), transparent 25%),
+                radial-gradient(circle at 84% 18%, rgba(255, 249, 218, 0.9), transparent 23%),
+                linear-gradient(135deg, #f8f5ec 0%, #eef7f3 52%, #f8f6ed 100%);
         }
 
         button,
@@ -57,10 +57,11 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background: var(--surface);
-            border: 1px solid rgba(96, 114, 108, 0.24);
-            border-radius: 24px;
-            box-shadow: var(--shadow);
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(98, 144, 132, 0.28);
+            border-radius: 28px;
+            box-shadow: 0 22px 55px rgba(61, 89, 79, 0.12);
+            backdrop-filter: blur(10px);
         }
 
         .app-header {
@@ -68,21 +69,22 @@
             display: flex;
             align-items: center;
             gap: 16px;
-            padding: 18px 24px;
-            color: #fff;
-            background: linear-gradient(120deg, #125c56, #1e776e);
+            padding: 17px 26px;
+            color: #126f66;
+            border-bottom: 2px solid rgba(112, 187, 170, 0.36);
+            background: rgba(255, 255, 255, 0.76);
         }
 
         .app-mark {
-            width: 58px;
-            height: 58px;
-            flex: 0 0 58px;
+            width: 48px;
+            height: 48px;
+            flex: 0 0 48px;
             display: grid;
             place-items: center;
             border-radius: 18px;
-            font-size: 30px;
-            background: rgba(255, 255, 255, 0.18);
-            border: 1px solid rgba(255, 255, 255, 0.35);
+            font-size: 25px;
+            background: #e0f3ec;
+            border: 1px solid #b8ddd1;
         }
 
         .app-heading {
@@ -96,11 +98,35 @@
             gap: 10px;
         }
 
+        .app-context {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #155c55;
+            font-size: clamp(18px, 2vw, 22px);
+            font-weight: 900;
+            letter-spacing: 0.02em;
+        }
+
+        .test-header-progress {
+            padding: 8px 12px;
+            color: #1a756c;
+            font-size: 15px;
+            font-weight: 850;
+            border-radius: 999px;
+            background: #e6f5f0;
+        }
+
         .chat-language-form {
             margin: 0;
         }
 
+        .chat-logout-form {
+            margin: 0;
+        }
+
         .chat-language-button,
+        .chat-logout-button,
         .large-text-badge {
             min-height: 48px;
             display: inline-flex;
@@ -113,23 +139,23 @@
 
         .chat-language-button {
             padding: 10px 15px;
-            color: #173b37;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            background: #fff8dc;
-            box-shadow: 0 8px 18px rgba(15, 50, 46, 0.18);
+            color: #155d56;
+            border: 1px solid #b7ddd2;
+            background: #f7fcf9;
+            box-shadow: none;
         }
 
         .app-title {
             margin: 0;
             font-size: clamp(24px, 3vw, 32px);
             line-height: 1.25;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.025em;
         }
 
         .app-subtitle {
             margin: 5px 0 0;
             font-size: clamp(15px, 1.8vw, 18px);
-            color: rgba(255, 255, 255, 0.9);
+            color: #5e7b75;
         }
 
         .large-text-badge {
@@ -165,7 +191,7 @@
 
         .message {
             max-width: 94%;
-            padding: 18px 22px;
+            padding: 22px 30px 24px;
             border-radius: 22px;
             font-size: clamp(20px, 2.2vw, 23px);
             line-height: 1.8;
@@ -420,7 +446,7 @@
         .input-guide {
             grid-column: 1 / -1;
             min-height: 54px;
-            padding: 10px 14px;
+            padding: 14px 20px;
             display: flex;
             align-items: center;
             gap: 12px;
@@ -471,10 +497,11 @@
             width: 100%;
             min-height: 88px;
             max-height: 180px;
-            padding: 12px 20px;
+            padding: 18px 28px;
             color: var(--text);
             font-size: 21px;
             line-height: 1.6;
+            text-indent: 2px;
             resize: vertical;
             border: 2px solid #aebdb8;
             border-radius: 18px;
@@ -660,6 +687,364 @@
             box-shadow: none;
         }
 
+        .chat-logout-button {
+            padding: 10px 14px;
+            gap: 7px;
+            color: #89433b;
+            border: 1px solid #e2bdb7;
+            background: #fff8f6;
+            box-shadow: none;
+        }
+
+        .chat-logout-button:hover {
+            color: #fff;
+            border-color: #a65b52;
+            background: #a65b52;
+        }
+
+        .test-question-stage {
+            flex: 0 0 auto;
+            max-width: 860px;
+            width: calc(100% - 48px);
+            margin: clamp(16px, 3vh, 30px) auto 0;
+            padding: clamp(22px, 3.2vw, 38px);
+            text-align: center;
+            border: 1px solid #b9ded3;
+            border-radius: 24px;
+            background: linear-gradient(145deg, rgba(248, 254, 251, 0.97), rgba(236, 248, 243, 0.95));
+            box-shadow: 0 15px 32px rgba(31, 105, 91, 0.10);
+            animation: message-arrive 0.35s ease both;
+        }
+
+        .test-stage-topline {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            color: #287c71;
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.035em;
+        }
+
+        .test-progress-dots {
+            margin: 19px auto 11px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 9px;
+        }
+
+        .test-progress-dots span {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #b9ddd3;
+        }
+
+        .test-progress-dots span.is-complete {
+            background: #168479;
+        }
+
+        .test-progress-dots span.is-current {
+            background: #dd8914;
+            box-shadow: 0 0 0 4px rgba(221, 137, 20, 0.14);
+        }
+
+        .test-stage-promise {
+            margin: 0;
+            color: #238276;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .test-question-stage h2 {
+            max-width: 720px;
+            margin: 26px auto 0;
+            color: #104d46;
+            font-size: clamp(27px, 4vw, 42px);
+            line-height: 1.35;
+        }
+
+        .test-stage-help {
+            max-width: 650px;
+            margin: 12px auto 0;
+            color: #56716b;
+            font-size: clamp(16px, 2vw, 19px);
+            line-height: 1.65;
+        }
+
+        .test-narration-controls {
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .test-narration-controls button {
+            min-height: 50px;
+            padding: 10px 18px;
+            font-size: 16px;
+            box-shadow: none;
+        }
+
+        .test-narration-main {
+            background: #177f73;
+        }
+
+        .test-narration-secondary {
+            color: #176e64;
+            border: 2px solid #63ab9d;
+            background: #fff;
+        }
+
+        .test-narration-secondary:hover {
+            color: #fff;
+            background: #177f73;
+        }
+
+        .test-answer-preview {
+            max-width: 760px;
+            min-height: 92px;
+            margin: 24px auto 0;
+            padding: 22px 30px 24px;
+            text-align: left;
+            border: 2px solid #abd9ce;
+            border-radius: 16px;
+            background: rgba(236, 248, 244, 0.92);
+        }
+
+        .test-answer-preview-label {
+            display: block;
+            color: #287e72;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+        }
+
+        .test-answer-preview output {
+            display: block;
+            margin-top: 8px;
+            color: #104d46;
+            font-size: clamp(18px, 2.3vw, 23px);
+            font-weight: 800;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .test-answer-preview.is-empty output {
+            color: #6b8982;
+            font-weight: 650;
+        }
+
+        .test-assessment-status {
+            max-width: 760px;
+            margin: 14px auto 0;
+            color: #2c6960;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.55;
+        }
+
+        .test-drawing-mount {
+            max-width: 900px;
+            margin: 24px auto 0;
+            text-align: left;
+        }
+
+        .chat-container.is-testing .app-header {
+            color: #126f66;
+            border-bottom-color: rgba(112, 187, 170, 0.36);
+            background: rgba(255, 255, 255, 0.82);
+        }
+
+        .chat-container.is-testing .app-context {
+            position: static;
+            margin-left: auto;
+            transform: none;
+        }
+
+        .chat-container.is-testing .app-header-actions {
+            margin-left: 0;
+        }
+
+        .chat-container.is-testing {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .chat-container.is-testing .app-subtitle {
+            display: none;
+        }
+
+        .chat-container.is-testing .test-question-stage {
+            flex: 0 0 auto;
+            overflow: visible;
+            margin-top: 14px;
+            margin-bottom: 12px;
+            padding: clamp(18px, 2.5vw, 30px);
+        }
+
+        .chat-container.is-testing .test-question-stage h2 {
+            margin-top: 20px;
+            font-size: clamp(26px, 3.6vw, 38px);
+        }
+
+        .chat-container.is-testing .test-progress-dots {
+            margin-top: 15px;
+            margin-bottom: 9px;
+        }
+
+        .chat-container.is-testing .test-answer-preview {
+            min-height: 74px;
+            margin-top: 16px;
+            padding: 16px 24px 18px;
+        }
+
+        .chat-container.is-testing .test-narration-controls {
+            margin-top: 16px;
+        }
+
+        .chat-container.is-testing .chat-box {
+            display: none;
+        }
+
+        .chat-container.is-testing .control-panel {
+            width: min(860px, calc(100% - 48px));
+            margin: 0 auto clamp(16px, 2.5vh, 26px);
+            border: 1px solid #b9ded3;
+            border-radius: 20px;
+            overflow: hidden;
+            background: rgba(250, 253, 251, 0.94);
+            box-shadow: 0 12px 26px rgba(31, 105, 91, 0.08);
+        }
+
+        .chat-container.is-testing .test-controls,
+        .chat-container.is-testing .conversation-mode-switch,
+        .chat-container.is-testing .live-call-panel {
+            display: none !important;
+        }
+
+        .chat-container.is-testing .input-area {
+            padding: 16px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            background: transparent;
+        }
+
+        .chat-container.is-testing .input-guide {
+            display: none !important;
+        }
+
+        .chat-container.is-testing #user-input,
+        .chat-container.is-testing .input-area.is-live #user-input {
+            display: block;
+            grid-column: 1 / -1;
+            min-height: 70px;
+            border-color: #8bc6ba;
+            background: #fff;
+        }
+
+        .chat-container.is-testing #send-btn,
+        .chat-container.is-testing .input-area.is-live #send-btn {
+            display: block;
+            min-width: min(440px, 100%);
+            background: #177f73;
+        }
+
+        .chat-container.is-testing #record-btn,
+        .chat-container.is-testing .input-area.is-live #record-btn {
+            display: block;
+            min-width: 164px;
+            color: #176e64;
+            border: 2px solid #63ab9d;
+            background: #fff;
+        }
+
+        .conversation-mode-switch {
+            grid-column: 1 / -1;
+            display: inline-flex;
+            justify-self: start;
+            padding: 4px;
+            gap: 4px;
+            border: 1px solid #c7ded6;
+            border-radius: 15px;
+            background: #edf6f2;
+        }
+
+        .conversation-mode-button {
+            min-height: 44px;
+            padding: 8px 14px;
+            color: #45655e;
+            font-size: 15px;
+            box-shadow: none;
+            border-radius: 11px;
+            background: transparent;
+        }
+
+        .conversation-mode-button.is-selected {
+            color: #fff;
+            background: #177f73;
+            box-shadow: 0 4px 10px rgba(23, 127, 115, 0.18);
+        }
+
+        .live-call-panel {
+            grid-column: 1 / -1;
+            min-height: 78px;
+            padding: 12px 14px 12px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            color: #1c5e56;
+            border: 1px solid #b7dbd0;
+            border-radius: 17px;
+            background: linear-gradient(110deg, #e8f7f1, #f9fffc);
+        }
+
+        .live-call-status {
+            max-width: 610px;
+            font-size: 16px;
+            font-weight: 750;
+            line-height: 1.55;
+        }
+
+        #live-call-btn {
+            min-width: 178px;
+            min-height: 50px;
+            background: #176f92;
+        }
+
+        .input-area.is-live #user-input,
+        .input-area.is-live #record-btn,
+        .input-area.is-live #send-btn {
+            display: none;
+        }
+
+        .input-area.is-live .input-guide {
+            display: none;
+        }
+
+        .input-area.is-live .live-call-panel {
+            display: flex;
+        }
+
+        .exit-test {
+            min-height: 42px;
+            padding: 8px 13px;
+            color: #2f7068;
+            font-size: 15px;
+            border: 1px solid #8bc3b7;
+            border-radius: 12px;
+            background: #f4fcf8;
+            box-shadow: none;
+        }
+
+        .exit-test:hover {
+            color: #fff;
+            background: #397d73;
+        }
+
         .sr-only {
             position: absolute;
             width: 1px;
@@ -699,6 +1084,14 @@
                 padding: 13px 16px;
             }
 
+            .app-context {
+                display: none;
+            }
+
+            .test-header-progress {
+                display: none;
+            }
+
             .app-mark {
                 width: 48px;
                 height: 48px;
@@ -709,6 +1102,15 @@
 
             .app-subtitle,
             .large-text-badge {
+                display: none;
+            }
+
+            .chat-logout-button {
+                min-width: 48px;
+                padding: 10px 12px;
+            }
+
+            .chat-logout-button span:last-child {
                 display: none;
             }
 
@@ -781,6 +1183,50 @@
                 gap: 8px;
             }
 
+            .conversation-mode-switch {
+                width: 100%;
+            }
+
+            .conversation-mode-button {
+                flex: 1;
+                padding-inline: 8px;
+                font-size: 14px;
+            }
+
+            .live-call-panel {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            #live-call-btn {
+                width: 100%;
+            }
+
+            .test-question-stage {
+                width: calc(100% - 24px);
+                margin-top: 12px;
+                padding: 20px 16px;
+                border-radius: 20px;
+            }
+
+            .test-question-stage h2 {
+                margin-top: 18px;
+                font-size: 27px;
+            }
+
+            .test-stage-help {
+                font-size: 16px;
+            }
+
+            .test-progress-dots {
+                gap: 7px;
+            }
+
+            .test-progress-dots span {
+                width: 12px;
+                height: 12px;
+            }
+
             .input-guide {
                 min-height: 48px;
                 padding: 7px 11px;
@@ -830,7 +1276,18 @@
                 <h1 class="app-title">忆路明灯</h1>
                 <p class="app-subtitle">耐心倾听，温暖陪伴 · 支持语音交流与认知测试</p>
             </div>
+            <div class="app-context" aria-live="polite">
+                <span id="workspace-label">智慧陪伴</span>
+            </div>
             <div class="app-header-actions">
+                <span id="test-header-progress" class="test-header-progress" hidden></span>
+                <button type="button" id="exit-test-btn" class="exit-test" onclick="exitTest()" hidden>退出测试</button>
+                <form class="chat-logout-form" action="{{ url_for('logout') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button class="chat-logout-button" type="submit" title="退出登录" aria-label="退出登录">
+                        <span aria-hidden="true">↪</span><span>退出登录</span>
+                    </button>
+                </form>
                 <form class="chat-language-form" action="{{ url_for('set_language', language='zh' if current_language == 'en' else 'en') }}" method="post">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
@@ -841,6 +1298,27 @@
                 <a class="large-text-badge" href="{{ url_for('dashboard') }}">← 返回首页</a>
             </div>
         </header>
+
+        <section class="test-question-stage" id="test-question-stage" hidden aria-labelledby="test-question-prompt">
+            <div class="test-stage-topline">
+                <span id="test-stage-domain">认知任务</span>
+                <span id="test-stage-number"></span>
+            </div>
+            <div class="test-progress-dots" id="test-progress-dots" aria-label="测试进度"></div>
+            <p class="test-stage-promise">您可以随时暂停，不需要着急。</p>
+            <h2 id="test-question-prompt"></h2>
+            <p class="test-stage-help">您可以打字回答，或录音转文字后确认提交。</p>
+            <div class="test-narration-controls" aria-label="题目朗读控制">
+                <button type="button" class="test-narration-main" id="test-narration-toggle" onclick="toggleTestNarration()">⏸ 暂停朗读</button>
+                <button type="button" class="test-narration-secondary" id="test-narration-replay" onclick="replayTestNarration()">↻ 从头重播</button>
+            </div>
+            <div class="test-answer-preview is-empty" id="test-answer-preview" aria-live="polite">
+                <span class="test-answer-preview-label">我听到：</span>
+                <output id="test-answer-preview-text">等待您的回答</output>
+            </div>
+            <p class="test-assessment-status" id="test-assessment-status" role="status" hidden></p>
+            <div class="test-drawing-mount" id="test-drawing-mount"></div>
+        </section>
 
         <div class="chat-box" id="chat-box" role="log" aria-live="polite">
             <div class="message ai">
@@ -858,7 +1336,6 @@
             <div class="test-controls">
                 <button type="button" id="start-test-btn" onclick="startTest()">🧠 开始认知测试</button>
                 <span id="test-progress" class="test-progress" hidden></span>
-                <button type="button" id="exit-test-btn" class="exit-test" onclick="exitTest()" hidden>退出测试</button>
             </div>
 
             <div class="voice-settings" id="voice-settings-row">
@@ -888,12 +1365,22 @@
             </div>
 
             <div class="input-area">
+                <div class="conversation-mode-switch" role="tablist" aria-label="交流方式">
+                    <button type="button" class="conversation-mode-button is-selected" id="review-mode-btn"
+                        role="tab" aria-selected="true" onclick="selectInteractionMode('review')">🎙️ 录音转文字</button>
+                    <button type="button" class="conversation-mode-button" id="live-mode-btn"
+                        role="tab" aria-selected="false" onclick="selectInteractionMode('live')">☎ 连续语音对话</button>
+                </div>
                 <div class="input-guide" id="input-guide" aria-live="polite">
                     <span class="input-guide-icon" aria-hidden="true">🎤</span>
                     <span class="input-guide-copy">
                         <strong id="input-guide-title">说话、打字都可以</strong>
                         <small id="input-guide-status">点击蓝色“点击说话”按钮，听到提示后再开始说。</small>
                     </span>
+                </div>
+                <div class="live-call-panel" id="live-call-panel" hidden>
+                    <span class="live-call-status" id="live-call-status">准备好后开始连续对话。AI 回复结束后会继续听您说话。</span>
+                    <button type="button" id="live-call-btn" onclick="toggleLiveConversation()">☎ 开始连续对话</button>
                 </div>
                 <label class="sr-only" for="user-input">输入您想说的话</label>
                 <textarea id="user-input" rows="2" placeholder="请在这里输入内容……"
@@ -927,6 +1414,12 @@
     <script>
         let isTesting = false;
         let currentQuestion = null;
+        let interactionMode = 'review';
+        let liveConversationActive = false;
+        let liveRestartTimer = null;
+        let activeNarrationText = '';
+        let activeNarrationQuestion = null;
+        let activeFamilyAudio = null;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const knowledgeToggle = document.getElementById('use-knowledge');
         try {
@@ -956,24 +1449,53 @@
         }
 
         function setTestMode(active, progress='') {
+            const wasTesting = isTesting;
             isTesting = active;
             document.querySelector('.chat-container').classList.toggle('is-testing', active);
             document.getElementById('start-test-btn').hidden = active;
             document.getElementById('exit-test-btn').hidden = !active;
+            document.getElementById('test-question-stage').hidden = !active;
+            document.getElementById('workspace-label').textContent = active
+                ? (interfaceLanguage === 'en' ? 'Cognitive task' : '认知任务')
+                : (interfaceLanguage === 'en' ? 'Companion' : '智慧陪伴');
 
             const progressElement = document.getElementById('test-progress');
             progressElement.hidden = !active;
             progressElement.innerText = active ? `测试进度：${progress}` : '';
+            const headerProgress = document.getElementById('test-header-progress');
+            headerProgress.hidden = !active;
+            headerProgress.innerText = active
+                ? (interfaceLanguage === 'en' ? `Task ${progress}` : `第 ${progress} 题`)
+                : '';
 
             document.getElementById('user-input').placeholder =
                 active ? '请输入本题答案...' : '输入你想说的话...';
             document.getElementById('knowledge-toggle-row').hidden = active;
             document.getElementById('voice-settings-row').hidden = active;
-            if (!active) setCurrentQuestion(null);
+            document.getElementById('send-btn').textContent = active
+                ? (interfaceLanguage === 'en' ? '✓ Confirm & submit' : '✓ 确认并提交')
+                : '发送文字';
+
+            if (active && !wasTesting) {
+                // 测评需要逐题确认回答，进入后结束连续陪聊，避免麦克风与题目朗读重叠。
+                stopLiveConversation();
+                document.getElementById('user-input').value = '';
+                updateTestAnswerPreview('');
+                updateTestStatus('');
+                resetRecordButton();
+            }
+            if (!active) {
+                stopTestNarration();
+                setCurrentQuestion(null);
+                updateTestStatus('');
+                document.getElementById('test-drawing-mount').replaceChildren();
+                resetRecordButton();
+            }
         }
 
         function setCurrentQuestion(question) {
             currentQuestion = question || null;
+            renderTestQuestion(currentQuestion);
             const existing = document.getElementById('clock-answer-card');
             if (existing) existing.remove();
 
@@ -981,15 +1503,73 @@
                 isTesting && currentQuestion?.response_type === 'drawing'
             );
             document.querySelector('.input-area').hidden = drawingMode;
+            document.getElementById('test-answer-preview').hidden = drawingMode;
             document.getElementById('voice-settings-row').hidden = isTesting;
-            if (!drawingMode) return;
+            if (!drawingMode) {
+                if (isTesting) {
+                    document.getElementById('user-input').value = '';
+                    updateTestAnswerPreview('');
+                }
+                return;
+            }
 
             const template = document.getElementById('clock-answer-template');
             const card = template.content.firstElementChild.cloneNode(true);
-            const chatBox = document.getElementById('chat-box');
-            chatBox.appendChild(card);
+            document.getElementById('test-drawing-mount').appendChild(card);
             setupClockAnswer(card);
             card.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }
+
+        function updateTestAnswerPreview(answer='') {
+            const preview = document.getElementById('test-answer-preview');
+            const output = document.getElementById('test-answer-preview-text');
+            const hasAnswer = Boolean(answer.trim());
+            preview.classList.toggle('is-empty', !hasAnswer);
+            output.textContent = hasAnswer
+                ? answer
+                : (interfaceLanguage === 'en' ? 'Waiting for your answer' : '等待您的回答');
+        }
+
+        function updateTestStatus(message='') {
+            const status = document.getElementById('test-assessment-status');
+            status.textContent = message;
+            status.hidden = !message;
+        }
+
+        function renderTestQuestion(question) {
+            const stage = document.getElementById('test-question-stage');
+            if (!isTesting || !question) {
+                stage.hidden = true;
+                return;
+            }
+
+            stage.hidden = false;
+            const number = Number(question.number || 1);
+            const total = Number(question.total || 11);
+            const isEnglish = interfaceLanguage === 'en';
+            document.getElementById('test-stage-domain').textContent =
+                question.domain || (isEnglish ? 'Cognitive task' : '认知任务');
+            document.getElementById('test-stage-number').textContent = isEnglish
+                ? `Question ${number} of ${total}`
+                : `第 ${number} / ${total} 题`;
+            document.getElementById('test-question-prompt').textContent = question.prompt || '';
+
+            const dots = document.getElementById('test-progress-dots');
+            dots.replaceChildren();
+            for (let index = 1; index <= total; index += 1) {
+                const dot = document.createElement('span');
+                dot.classList.toggle('is-complete', index < number);
+                dot.classList.toggle('is-current', index === number);
+                dot.setAttribute('aria-label', isEnglish ? `Question ${index}` : `第 ${index} 题`);
+                dots.appendChild(dot);
+            }
+            updateTestNarrationControls();
+        }
+
+        function testAcknowledgement() {
+            return interfaceLanguage === 'en'
+                ? 'Your answer has been recorded. Please continue with the next task.'
+                : '回答已记录。请继续下一题。';
         }
 
         async function startTest() {
@@ -1008,16 +1588,13 @@
                 if (!response.ok) throw new Error(data.error || '测试启动失败');
 
                 setTestMode(true, data.progress);
-                appendMessage(data.reply, 'ai');
+                updateTestStatus(
+                    interfaceLanguage === 'en'
+                        ? 'This assessment is for project demonstration and preliminary reference only. It is not a medical diagnosis.'
+                        : '本测试仅用于项目演示和初步参考，不构成医学诊断。'
+                );
                 setCurrentQuestion(data.question);
-                if (data.voice_reply_token) {
-                    await speakAuthorizedFamilyVoice(
-                        data.voice_reply_token,
-                        data.reply
-                    );
-                } else {
-                    speakText(data.reply);
-                }
+                await speakTestQuestion(data.question);
             } catch (error) {
                 appendMessage(error.message || '测试启动失败，请稍后再试。', 'ai');
             } finally {
@@ -1046,33 +1623,40 @@
                 const data = await response.json();
                 if (data.testing) {
                     setTestMode(true, data.progress);
-                    appendMessage(data.reply, 'ai');
+                    updateTestStatus(
+                        interfaceLanguage === 'en'
+                            ? 'Your unfinished cognitive task has been restored. Continue whenever you are ready.'
+                            : '已恢复您尚未完成的认知测试；准备好后可以继续。'
+                    );
                     setCurrentQuestion(data.question);
-                    speakText(data.reply);
+                    await speakTestQuestion(data.question);
                 }
             } catch (error) {
                 console.warn('无法恢复测试状态:', error);
             }
         }
 
-        async function sendMessage() {
+        async function sendMessage({resumeLive=false}={}) {
             const inputField = document.getElementById('user-input');
             const sendBtn = document.getElementById('send-btn');
             const message = inputField.value.trim();
 
             if (!message || sendBtn.disabled) return;
 
-            // 1. 显示用户消息
-            appendMessage(message, 'user');
+            // 普通陪聊保留对话气泡；测评答案仅展示在专用的“我听到”确认区。
+            if (!isTesting) appendMessage(message, 'user');
             inputField.value = '';
             sendBtn.disabled = true; // 防止重复点击
 
-            const loadingId = appendMessage(
-                isTesting
-                    ? '正在记录回答...'
-                    : (knowledgeToggle.checked ? '正在查询已审核知识资料...' : '正在思考...'),
-                'ai',
-                true
+            const loadingId = isTesting
+                ? ''
+                : appendMessage(
+                    knowledgeToggle.checked ? '正在查询已审核知识资料...' : '正在思考...',
+                    'ai',
+                    true
+                );
+            if (isTesting) updateTestStatus(
+                interfaceLanguage === 'en' ? 'Recording your answer…' : '正在记录您的回答…'
             );
 
             try {
@@ -1094,27 +1678,43 @@
                     throw new Error(data.error || '请求处理失败');
                 }
 
-                removeMessage(loadingId);
-                appendMessage(data.reply, 'ai', false, data.references || []);
-                if (data.voice_reply_token) {
-                    await speakAuthorizedFamilyVoice(data.voice_reply_token, data.reply);
-                } else {
-                    speakText(data.reply);
-                }
-
+                if (loadingId) removeMessage(loadingId);
                 if (isTesting) {
                     if (data.completed) {
+                        appendMessage(data.reply, 'ai');
                         setTestMode(false);
+                        await speakText(data.reply);
                     } else {
                         setTestMode(true, data.progress);
                         setCurrentQuestion(data.question);
+                        if (data.clarification_required) {
+                            updateTestStatus(data.reply);
+                            await speakText(`${data.reply} ${data.question.prompt}`, 'test');
+                        } else {
+                            updateTestStatus(testAcknowledgement());
+                            await speakTestQuestion(data.question);
+                        }
+                    }
+                } else {
+                    appendMessage(data.reply, 'ai', false, data.references || []);
+                    if (data.voice_reply_token) {
+                        await speakAuthorizedFamilyVoice(data.voice_reply_token, data.reply);
+                    } else {
+                        await speakText(data.reply);
                     }
                 }
             } catch (error) {
-                removeMessage(loadingId);
-                appendMessage(error.message || '抱歉，连接出错了。', 'ai');
+                if (loadingId) {
+                    removeMessage(loadingId);
+                    appendMessage(error.message || '抱歉，连接出错了。', 'ai');
+                } else {
+                    updateTestStatus(error.message || '抱歉，连接出错了。');
+                }
             } finally {
                 sendBtn.disabled = false;
+                if (resumeLive && liveConversationActive && !isTesting) {
+                    scheduleLiveListening();
+                }
             }
         }
 
@@ -1223,13 +1823,15 @@
                         ? '实验模型未给出可靠分数，本题已转人工复核。'
                         : `实验模型预测：Shulman ${prediction.score}/5（${prediction.score_label || '待复核'}），置信度${Math.round((prediction.confidence || 0) * 100)}%。该结果不是MoCA分数。`;
                     const fullReply = `${predictionText}\n\n${data.reply}`;
-                    appendMessage(fullReply, 'ai');
-                    speakText(fullReply);
                     if (data.completed) {
                         setTestMode(false);
+                        appendMessage(fullReply, 'ai');
+                        speakText(fullReply);
                     } else {
                         setTestMode(true, data.progress);
                         setCurrentQuestion(data.question);
+                        updateTestStatus('绘图已保存，本题将在结果汇总中说明。');
+                        await speakTestQuestion(data.question);
                     }
                 } catch (error) {
                     status.textContent = error.message || '画钟提交失败，请稍后再试。';
@@ -1327,37 +1929,65 @@
 
                 const audioUrl = URL.createObjectURL(await response.blob());
                 const audio = new Audio(audioUrl);
-                audio.onended = () => URL.revokeObjectURL(audioUrl);
-                audio.onerror = () => URL.revokeObjectURL(audioUrl);
+                activeFamilyAudio = audio;
+                const settled = new Promise(resolve => {
+                    const cleanup = () => {
+                        if (activeFamilyAudio === audio) activeFamilyAudio = null;
+                        URL.revokeObjectURL(audioUrl);
+                        resolve();
+                    };
+                    audio.onended = cleanup;
+                    audio.onerror = cleanup;
+                });
                 await audio.play();
+                await settled;
             } catch (error) {
                 // 没有远端语音服务时保留原有浏览器朗读，聊天不因此中断。
-                speakText(fallbackText);
+                return speakText(fallbackText);
             }
         }
 
         // 使用浏览器内置的语音合成功能朗读 AI 回复
         const interfaceLanguage = {{ current_language | tojson }};
 
-        function speakText(text) {
+        function updateTestNarrationControls() {
+            const toggle = document.getElementById('test-narration-toggle');
+            if (!toggle) return;
+            const synth = window.speechSynthesis;
+            const paused = Boolean(synth && synth.paused);
+            const speaking = Boolean(synth && synth.speaking);
+            toggle.textContent = paused
+                ? (interfaceLanguage === 'en' ? '▶ Resume narration' : '▶ 继续朗读')
+                : (speaking
+                    ? (interfaceLanguage === 'en' ? '⏸ Pause narration' : '⏸ 暂停朗读')
+                    : (interfaceLanguage === 'en' ? '▶ Play question' : '▶ 播放题目'));
+        }
+
+        function stopTestNarration() {
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            if (activeFamilyAudio) {
+                activeFamilyAudio.pause();
+                activeFamilyAudio = null;
+            }
+            updateTestNarrationControls();
+        }
+
+        function speakText(text, purpose='general') {
             if (!text || !('speechSynthesis' in window)) {
-                return;
+                return Promise.resolve();
             }
 
-            // 收到新回复时停止上一段朗读，避免声音重叠
             window.speechSynthesis.cancel();
-
             const utterance = new SpeechSynthesisUtterance(text);
             const speechMode = document.getElementById('speech-mode').value;
             const preferredLanguage = interfaceLanguage === 'en'
                 ? 'en-GB'
                 : (speechMode === 'cantonese' ? 'zh-HK' : 'zh-CN');
             utterance.lang = preferredLanguage;
-            utterance.rate = 1;
+            utterance.rate = purpose === 'test' ? 0.88 : 1;
             utterance.pitch = 1;
             utterance.volume = 1;
 
-            // 粤语模式优先选择香港粤语语音；没有时退回其他中文语音。
             const voices = window.speechSynthesis.getVoices();
             const exactVoice = voices.find(
                 voice => voice.lang.toLowerCase() === preferredLanguage.toLowerCase()
@@ -1365,11 +1995,53 @@
             const matchingVoice = exactVoice || voices.find(
                 voice => voice.lang.toLowerCase().startsWith(interfaceLanguage === 'en' ? 'en' : 'zh')
             );
-            if (matchingVoice) {
-                utterance.voice = matchingVoice;
+            if (matchingVoice) utterance.voice = matchingVoice;
+
+            if (purpose === 'test') {
+                activeNarrationText = text;
             }
 
-            window.speechSynthesis.speak(utterance);
+            return new Promise(resolve => {
+                const complete = () => {
+                    updateTestNarrationControls();
+                    resolve();
+                };
+                utterance.onstart = updateTestNarrationControls;
+                utterance.onpause = updateTestNarrationControls;
+                utterance.onresume = updateTestNarrationControls;
+                utterance.onend = complete;
+                utterance.onerror = complete;
+                window.speechSynthesis.speak(utterance);
+                updateTestNarrationControls();
+            });
+        }
+
+        function speakTestQuestion(question=currentQuestion) {
+            if (!question || !question.prompt) return Promise.resolve();
+            activeNarrationQuestion = question;
+            const prefix = interfaceLanguage === 'en'
+                ? `Question ${question.number} of ${question.total}. `
+                : `第 ${question.number} 题。`;
+            return speakText(`${prefix}${question.prompt}`, 'test');
+        }
+
+        function toggleTestNarration() {
+            if (!('speechSynthesis' in window)) return;
+            if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+                window.speechSynthesis.pause();
+                updateTestNarrationControls();
+                return;
+            }
+            if (window.speechSynthesis.paused) {
+                window.speechSynthesis.resume();
+                updateTestNarrationControls();
+                return;
+            }
+            speakTestQuestion(activeNarrationQuestion || currentQuestion);
+        }
+
+        function replayTestNarration() {
+            speakTestQuestion(activeNarrationQuestion || currentQuestion);
         }
         let speechRecognition = null;
         let isRecognizing = false;
@@ -1398,6 +2070,112 @@
             }
         };
 
+        function selectInteractionMode(mode) {
+            const nextMode = mode === 'live' ? 'live' : 'review';
+            if (interactionMode === nextMode) return;
+            if (liveConversationActive) stopLiveConversation();
+            interactionMode = nextMode;
+            const live = interactionMode === 'live';
+            document.getElementById('review-mode-btn').classList.toggle('is-selected', !live);
+            document.getElementById('live-mode-btn').classList.toggle('is-selected', live);
+            document.getElementById('review-mode-btn').setAttribute('aria-selected', String(!live));
+            document.getElementById('live-mode-btn').setAttribute('aria-selected', String(live));
+            document.querySelector('.input-area').classList.toggle('is-live', live);
+            document.getElementById('live-call-panel').hidden = !live;
+            if (live) {
+                setInputGuide(
+                    interfaceLanguage === 'en' ? 'Continuous voice conversation' : '连续语音对话',
+                    interfaceLanguage === 'en'
+                        ? 'Start when you are ready. The assistant listens again after each reply.'
+                        : '准备好后开始。每次 AI 回复结束后，会继续听您说话。'
+                );
+            } else {
+                setInputGuide(
+                    interfaceLanguage === 'en' ? 'Speak or type your message' : '说话、打字都可以',
+                    interfaceLanguage === 'en'
+                        ? 'Record first, review the converted text, then send it.'
+                        : '录音会先转成文字，请检查后再确认发送。'
+                );
+            }
+        }
+
+        function updateLiveCallUi(active, status) {
+            const button = document.getElementById('live-call-btn');
+            const panelStatus = document.getElementById('live-call-status');
+            button.textContent = active
+                ? (interfaceLanguage === 'en' ? '■ End conversation' : '■ 结束连续对话')
+                : (interfaceLanguage === 'en' ? '☎ Start continuous conversation' : '☎ 开始连续对话');
+            panelStatus.textContent = status || (active
+                ? (interfaceLanguage === 'en' ? 'Listening for your next message…' : '正在听您说话…')
+                : (interfaceLanguage === 'en'
+                    ? 'Start when ready. The assistant listens again after every reply.'
+                    : '准备好后开始连续对话。AI 回复结束后会继续听您说话。'));
+        }
+
+        async function toggleLiveConversation() {
+            if (liveConversationActive) {
+                stopLiveConversation();
+                return;
+            }
+            liveConversationActive = true;
+            updateLiveCallUi(true, interfaceLanguage === 'en' ? 'Preparing the microphone…' : '正在准备麦克风…');
+            await startLiveListening();
+        }
+
+        async function startLiveListening() {
+            if (!liveConversationActive || isTesting || isRecognizing) return;
+            const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!Recognition) {
+                appendMessage(
+                    interfaceLanguage === 'en'
+                        ? 'Continuous voice conversation needs the latest Chrome or Edge browser speech recognition.'
+                        : '连续语音对话需要使用最新版 Chrome 或 Edge 的浏览器语音识别。',
+                    'ai'
+                );
+                stopLiveConversation();
+                return;
+            }
+            updateLiveCallUi(true, interfaceLanguage === 'en' ? 'Listening…' : '正在听您说话…');
+            await toggleBrowserRecognition({autoSend: true, resumeLive: true});
+        }
+
+        function scheduleLiveListening() {
+            clearTimeout(liveRestartTimer);
+            if (!liveConversationActive || isTesting) return;
+            updateLiveCallUi(true, interfaceLanguage === 'en' ? 'Your turn. Listening again…' : '轮到您说话了，正在继续聆听…');
+            liveRestartTimer = setTimeout(() => startLiveListening(), 550);
+        }
+
+        function stopLiveConversation() {
+            clearTimeout(liveRestartTimer);
+            liveConversationActive = false;
+            if (speechRecognition && isRecognizing) speechRecognition.stop();
+            updateLiveCallUi(false);
+        }
+
+        async function handleRecognisedText(transcript, {autoSend=false, resumeLive=false}={}) {
+            const input = document.getElementById('user-input');
+            input.value = transcript;
+            if (isTesting) {
+                updateTestAnswerPreview(transcript);
+            }
+            if (autoSend) {
+                await sendMessage({resumeLive});
+                return;
+            }
+            setInputGuide(
+                interfaceLanguage === 'en' ? 'Text is ready to review' : '文字已经转好',
+                interfaceLanguage === 'en'
+                    ? (isTesting
+                        ? 'Check the text, edit it if needed, then choose Confirm & submit.'
+                        : 'Check the text, edit it if needed, then choose Send text.')
+                    : (isTesting
+                        ? '请检查或修改文字，然后点击“确认并提交”。'
+                        : '请检查或修改文字，然后点击“发送文字”。')
+            );
+            input.focus();
+        }
+
         function setInputGuide(title, status, recording=false) {
             const guide = document.getElementById('input-guide');
             document.getElementById('input-guide-title').textContent = title;
@@ -1409,25 +2187,38 @@
             const recordBtn = document.getElementById('record-btn');
             isRecognizing = false;
             isCloudRecording = false;
-            recordBtn.innerText = '🎤 点击说话';
+            const hasTestAnswer = isTesting && Boolean(
+                document.getElementById('user-input').value.trim()
+            );
+            recordBtn.innerText = isTesting
+                ? (hasTestAnswer ? '↻ 重新录音' : '🎤 录音回答')
+                : '🎤 点击说话';
             recordBtn.style.backgroundColor = '';
             document.getElementById('speech-mode').disabled = false;
             setInputGuide(
-                '说话、打字都可以',
-                '点击蓝色“点击说话”按钮，听到提示后再开始说。'
+                isTesting ? '打字或录音作答' : '说话、打字都可以',
+                isTesting
+                    ? (hasTestAnswer
+                        ? '请确认上方识别结果；如需修改可直接编辑，或重新录音。'
+                        : '您可以直接输入，也可以录音后检查文字再提交。')
+                    : '点击蓝色“点击说话”按钮，听到提示后再开始说。'
             );
         }
 
         async function toggleRecording() {
+            if (!isTesting && interactionMode === 'live') {
+                await toggleLiveConversation();
+                return;
+            }
             const speechMode = document.getElementById('speech-mode').value;
             if (cloudSpeechModes[speechMode]) {
-                await toggleCloudRecording(speechMode);
+                await toggleCloudRecording(speechMode, false);
             } else {
-                toggleBrowserRecognition();
+                toggleBrowserRecognition({autoSend: false});
             }
         }
 
-        async function toggleCloudRecording(speechMode) {
+        async function toggleCloudRecording(speechMode, autoSend=false) {
             const recordBtn = document.getElementById('record-btn');
 
             if (isCloudRecording && mediaRecorder) {
@@ -1473,7 +2264,7 @@
                         type: mediaRecorder.mimeType || 'audio/webm'
                     });
                     resetRecordButton();
-                    await sendCloudAudio(audioBlob, activeCloudMode);
+                    await sendCloudAudio(audioBlob, activeCloudMode, autoSend);
                 };
 
                 mediaRecorder.start();
@@ -1500,13 +2291,15 @@
             }
         }
 
-        async function sendCloudAudio(audioBlob, speechMode) {
+        async function sendCloudAudio(audioBlob, speechMode, autoSend=false) {
             const recordBtn = document.getElementById('record-btn');
             const modeInfo = cloudSpeechModes[speechMode];
             const loadingId = appendMessage(`正在识别${modeInfo.label}...`, 'ai', true);
             let browserFallbackStarted = false;
             recordBtn.disabled = true;
-            setInputGuide('正在转成文字', '请稍等片刻，识别完成后会自动发送。');
+            setInputGuide('正在转成文字', autoSend
+                ? '请稍等片刻，识别完成后会自动发送。'
+                : '请稍等片刻，识别完成后请检查文字再发送。');
 
             const formData = new FormData();
             formData.append('audio', audioBlob, modeInfo.filename);
@@ -1527,8 +2320,10 @@
                     throw new Error(data.error || `${modeInfo.label}识别失败`);
                 }
 
-                document.getElementById('user-input').value = data.text;
-                await sendMessage();
+                await handleRecognisedText(data.text, {
+                    autoSend,
+                    resumeLive: autoSend && liveConversationActive
+                });
             } catch (error) {
                 removeMessage(loadingId);
                 if (modeInfo.browserFallback) {
@@ -1540,7 +2335,7 @@
                         '项目普通话识别暂时不可用，已切换到浏览器备用识别。请听到提示后，把刚才的话再说一次。',
                         'ai'
                     );
-                    await toggleBrowserRecognition();
+                    await toggleBrowserRecognition({autoSend});
                 } else {
                     appendMessage(
                         error.message || `${modeInfo.label}识别失败，请再试一次。`,
@@ -1630,7 +2425,7 @@
             }
         }
 
-        async function toggleBrowserRecognition() {
+        async function toggleBrowserRecognition({autoSend=false, resumeLive=false}={}) {
             const recordBtn = document.getElementById('record-btn');
 
             if (isRecognizing && speechRecognition) {
@@ -1664,6 +2459,9 @@
             speechRecognition.onstart = () => {
                 isRecognizing = true;
                 document.getElementById('speech-mode').disabled = true;
+                if (resumeLive) {
+                    updateLiveCallUi(true, interfaceLanguage === 'en' ? 'Listening…' : '正在听您说话…');
+                }
                 recordBtn.innerText = '🛑 正在聆听...点击停止';
                 recordBtn.style.backgroundColor = '#dc3545';
                 setInputGuide(
@@ -1690,10 +2488,12 @@
                     'no-speech': '没有听到清晰的语音，请再试一次。',
                     'network': '浏览器语音识别服务暂时无法连接。'
                 };
-                appendMessage(
-                    errorMessages[event.error] || '语音识别失败，请再试一次。',
-                    'ai'
-                );
+                if (!resumeLive || event.error !== 'no-speech') {
+                    appendMessage(
+                        errorMessages[event.error] || '语音识别失败，请再试一次。',
+                        'ai'
+                    );
+                }
             };
 
             speechRecognition.onend = async () => {
@@ -1701,8 +2501,9 @@
                 resetRecordButton();
                 if (resultReceived && browserTranscript) {
                     await analyzeBrowserAudio(audioBlob, browserTranscript);
-                    document.getElementById('user-input').value = browserTranscript;
-                    await sendMessage();
+                    await handleRecognisedText(browserTranscript, {autoSend, resumeLive});
+                } else if (resumeLive && liveConversationActive) {
+                    scheduleLiveListening();
                 } else {
                     document.getElementById('user-input').focus();
                 }
@@ -1717,7 +2518,12 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', restoreTestStatus);
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('user-input').addEventListener('input', event => {
+                if (isTesting) updateTestAnswerPreview(event.target.value);
+            });
+            restoreTestStatus();
+        });
     </script>
 </body>
 </html>

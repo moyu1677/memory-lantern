@@ -794,12 +794,48 @@ def get_voice_chat_state(user_id):
     return state
 
 
-def issue_voice_reply_token(user_id, reply_text):
+def select_voice_reply_emotion(user_text, reply_text):
+    """Choose a restrained prosody instruction from the *new* reply.
+
+    The authorised reference is used only for identity.  Its incidental mood
+    must never become the default mood of every answer, so the small text
+    control below is computed for each reply and bounded by the remote service.
+    """
+
+    tone = infer_audio_demo_reply_tone(reply_text)
+    if tone is None:
+        tone = infer_audio_demo_reply_tone(user_text)
+    plans = {
+        "positive": {
+            "label": "轻微明朗",
+            "text": "语气温暖、轻微明朗而克制；自然微笑，不提高音量，不夸张。",
+            "strength": 0.27,
+        },
+        "comfort": {
+            "label": "轻微安抚",
+            "text": "语气平静、柔和，带一点安慰；不悲伤夸张，不压低到难以听清。",
+            "strength": 0.32,
+        },
+        "concern": {
+            "label": "轻微关切",
+            "text": "语气认真、平和，带一点关切；不要焦急、不要紧张、不要夸张。",
+            "strength": 0.26,
+        },
+    }
+    return plans.get(tone, {
+        "label": "自然陪伴",
+        "text": "语气温和、自然、日常，保持清晰和从容。",
+        "strength": 0.16,
+    })
+
+
+def issue_voice_reply_token(user_id, reply_text, user_text=""):
     state = get_voice_chat_state(user_id)
     token = secrets.token_urlsafe(32)
     state["pending_voice_reply"] = {
         "token": token,
         "text": str(reply_text or "").strip(),
+        "emotion": select_voice_reply_emotion(user_text, reply_text),
         "expires_at": datetime.now().timestamp() + VOICE_REPLY_TOKEN_TTL_SECONDS,
         "used": False,
     }
@@ -1138,9 +1174,12 @@ def audio_demo_preview_voice():
 @app.route("/elder")
 @elder_required
 def elder_portal():
-    """老人登录后的产品入口。"""
+    """老人登录后的产品首页。"""
 
-    return redirect(url_for("assistant_page"))
+    # Keep the elder's first screen as the role-specific home page.  Chat and
+    # cognitive assessment remain deliberate choices on that page instead of
+    # being opened immediately after sign-in.
+    return dashboard()
 
 
 @app.route("/community")
@@ -1162,10 +1201,52 @@ def admin_portal():
 def account_home_endpoint(user):
     """Return the first useful workspace for each authenticated account type."""
     if user["account_type"] == "elder":
-        return "assistant_page"
+        return "elder_portal"
     if user["account_type"] == "admin":
         return "admin_users"
     return "dashboard"
+
+
+LOGIN_PORTALS = {
+    "elder": {
+        "account_type": "elder",
+        "icon": "👵",
+        "label": "老人端",
+        "description": "语音陪伴、认知记录与个人回忆",
+        "registration_available": True,
+    },
+    "family": {
+        "account_type": "family",
+        "icon": "👨‍👩‍👧",
+        "label": "家人端",
+        "description": "家人声音授权、关怀摘要与远程陪伴",
+        "registration_available": True,
+    },
+    "community": {
+        "account_type": "community",
+        "icon": "🏡",
+        "label": "社区端",
+        "description": "社区协作、授权照护与健康服务",
+        "registration_available": True,
+    },
+    "admin": {
+        "account_type": "admin",
+        "icon": "🛡️",
+        "label": "管理员端",
+        "description": "用户审核、内容管理与运营配置",
+        "registration_available": False,
+    },
+}
+
+
+def requested_login_portal():
+    """Return the explicitly chosen portal, never infer it from credentials."""
+    value = (
+        request.form.get("account_type")
+        if request.method == "POST"
+        else request.args.get("account_type")
+    )
+    return LOGIN_PORTALS.get(str(value or "").strip())
 
 
 class AudioTranscriptionError(RuntimeError):
@@ -1291,27 +1372,24 @@ def set_language(language):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if g.current_user is not None:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for(account_home_endpoint(g.current_user)))
 
+    selected_portal = requested_login_portal()
     if request.method == "POST":
         username = normalize_username(request.form.get("username"))
         password = str(request.form.get("password") or "")
-        selected_account_type = str(
-            request.form.get("account_type") or ""
-        ).strip()
         user = get_user_by_username(username)
 
-        if (
+        if selected_portal is None:
+            flash("请先选择您要进入的服务端。", "error")
+        elif (
             user is None
             or not user["is_active"]
             or not check_password_hash(user["password_hash"], password)
         ):
             flash("账号或密码不正确，请重新输入。", "error")
-        elif (
-            selected_account_type
-            and user["account_type"] != selected_account_type
-        ):
-            flash("请选择与该账号一致的登录入口。", "error")
+        elif user["account_type"] != selected_portal["account_type"]:
+            flash("该账号不属于当前服务端，请返回后选择正确入口。", "error")
         else:
             remember = request.form.get("remember") == "on"
             next_url = request.form.get("next")
@@ -1330,6 +1408,8 @@ def login():
     return render_template(
         "login.html",
         next_url=request.args.get("next", ""),
+        selected_portal=selected_portal,
+        login_portals=LOGIN_PORTALS.values(),
     )
 
 
@@ -1337,6 +1417,19 @@ def login():
 def register():
     if g.current_user is not None:
         return redirect(url_for("dashboard"))
+
+    requested_account_type = str(
+        (
+            request.form.get("account_type")
+            if request.method == "POST"
+            else request.args.get("account_type")
+        )
+        or ""
+    ).strip()
+    selected_portal = LOGIN_PORTALS.get(requested_account_type)
+    if selected_portal and not selected_portal["registration_available"]:
+        flash("管理员账号由平台创建，请使用已有账号登录。", "error")
+        return redirect(url_for("login", account_type=requested_account_type))
 
     if request.method == "POST":
         username = normalize_username(request.form.get("username"))
@@ -1360,12 +1453,12 @@ def register():
         if error:
             flash(error, "error")
         else:
-            account_type = str(
-                request.form.get("account_type") or "elder"
-            ).strip()
+            account_type = requested_account_type or "elder"
             if account_type not in {"elder", "family", "community"}:
                 flash("请选择正确的账户类型。", "error")
-                return render_template("register.html")
+                return render_template(
+                    "register.html", selected_portal=selected_portal
+                )
             try:
                 create_user(
                     username=username,
@@ -1378,9 +1471,9 @@ def register():
                 flash("这个账号名称已经被使用，请换一个。", "error")
             else:
                 flash("注册成功，请使用新账号登录。", "success")
-                return redirect(url_for("login"))
+                return redirect(url_for("login", account_type=account_type))
 
-    return render_template("register.html")
+    return render_template("register.html", selected_portal=selected_portal)
 
 
 @app.route("/logout", methods=["POST"])
@@ -1437,16 +1530,8 @@ def voice_profiles_page():
             elder_id = 0
         if elder_id not in allowed_elder_ids:
             abort(403)
-        if action == "activate":
-            try:
-                profile_id = int(request.form.get("profile_id") or 0)
-            except (TypeError, ValueError):
-                profile_id = 0
-            profile = get_voice_profile(profile_id)
-            if profile is None or profile["elder_id"] != elder_id or profile["created_by"] != g.current_user["id"]:
-                abort(403)
-            flash("已切换为这位家人的声音。" if activate_voice_profile(elder_id, profile_id) else "未找到声音档案。", "success")
-            return redirect(url_for("voice_profiles_page"))
+        if action != "enroll":
+            abort(400)
         label = unicodedata.normalize("NFKC", str(request.form.get("label") or "")).strip()[:40]
         sample = request.files.get("reference_audio")
         if not label:
@@ -1467,14 +1552,91 @@ def voice_profiles_page():
             except VoiceServiceError as exc:
                 flash(str(exc), "error")
             else:
-                flash("声音测试已完成并设为当前陪伴声音；原始音频只保存在远程语音服务器。", "success")
+                flash("声音已通过识别核对并加入声音库。请由老人登录自己的账号后选择要使用的声音。", "success")
                 return redirect(url_for("voice_profiles_page"))
     return render_template(
         "voice_profiles.html",
         elders=elders,
         profiles_by_elder={elder["id"]: list_voice_profiles(elder["id"], g.current_user["id"]) for elder in elders},
         voice_service_configured=voice_service.configured,
+        asr_service_configured=asr_service.configured,
     )
+
+
+@app.route("/elder/voice-library", methods=["GET", "POST"])
+@elder_required
+def elder_voice_library():
+    """Let the elder select an already authorised family voice.
+
+    Family accounts can add and revoke their own authorised samples, but only
+    the elder decides which available voice is used in their conversation.
+    """
+
+    elder_id = g.current_user["id"]
+    if request.method == "POST":
+        try:
+            profile_id = int(request.form.get("profile_id") or 0)
+        except (TypeError, ValueError):
+            profile_id = 0
+        profile = get_voice_profile(profile_id)
+        if profile is None or profile["elder_id"] != elder_id:
+            abort(403)
+        if activate_voice_profile(elder_id, profile_id):
+            flash(f"已选择“{profile['label']}”。接下来的陪伴回复会使用这条家人声音。", "success")
+        else:
+            flash("没有找到这条声音，请重新选择。", "error")
+        return redirect(url_for("elder_voice_library"))
+
+    return render_template(
+        "elder_voice_library.html",
+        profiles=list_voice_profiles(elder_id),
+        voice_service_configured=voice_service.configured,
+    )
+
+
+@app.route("/voice-profiles/transcribe", methods=["POST"])
+@family_required
+def transcribe_family_voice_sample():
+    """Transcribe a family sample for review before it is authorised.
+
+    The recognition result is intentionally returned to the current page only:
+    this app never writes the spoken content or original recording to its
+    database.  The family member submits the audio again only after confirming
+    the transcript and explicit voice consent.
+    """
+
+    try:
+        elder_id = int(request.form.get("elder_id") or 0)
+    except (TypeError, ValueError):
+        elder_id = 0
+    if not is_elder_bound_to(g.current_user["id"], elder_id):
+        abort(403)
+
+    sample = request.files.get("reference_audio")
+    if sample is None or not sample.filename:
+        return jsonify({"error": "请先录音或选择一段声音文件。"}), 400
+    try:
+        validate_reference_audio(sample.filename, sample.mimetype)
+        transcript, language = transcribe_audio_file(sample, "browser")
+    except VoiceServiceError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except AudioTranscriptionError as exc:
+        return jsonify({"error": str(exc)}), exc.status_code
+
+    transcript = unicodedata.normalize("NFKC", str(transcript or "")).strip()
+    # A 200 response without spoken content is not a completed recognition.
+    # Treat noise-only or incomplete ASR responses as a retryable failure so
+    # they can never unlock the voice-consent flow.
+    if not transcript or not re.search(r"\w", transcript, flags=re.UNICODE):
+        return jsonify({
+            "error": "没有识别到清晰的说话内容，请靠近麦克风后重新录音。",
+        }), 422
+
+    return jsonify({
+        "text": transcript,
+        "language": language,
+        "notice": "转写只用于本页核对，不会保存到本应用。",
+    })
 
 
 @app.route("/voice-profiles/<int:profile_id>/revoke", methods=["POST"])
@@ -2002,7 +2164,12 @@ def synthesize_assistant_reply():
     if token_error:
         return jsonify({"error": token_error}), 400
     try:
-        audio, content_type = voice_service.synthesize(profile["remote_voice_id"], pending_reply["text"])
+        audio, content_type = voice_service.synthesize(
+            profile["remote_voice_id"],
+            pending_reply["text"],
+            emotion_text=pending_reply["emotion"]["text"],
+            emotion_strength=pending_reply["emotion"]["strength"],
+        )
     except VoiceServiceError as exc:
         with VOICE_REPLY_LOCK:
             pending_reply["used"] = False
@@ -2632,7 +2799,7 @@ def voice_chat():
         "conversation_mode": "voice_companion",
         "need_card_saved": card_saved,
         "voice_reply_token": (
-            issue_voice_reply_token(g.current_user["id"], reply) if profile else None
+            issue_voice_reply_token(g.current_user["id"], reply, user_input) if profile else None
         ),
     })
 

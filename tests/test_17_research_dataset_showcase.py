@@ -35,7 +35,7 @@ def test_research_dataset_page_shows_only_mandarin_and_cantonese(
     assert "原始录音" in html
 
 
-def test_dataset_navigation_is_available_after_login(
+def test_dataset_navigation_is_not_shown_on_the_family_care_dashboard(
     client,
     user_factory,
     login_as,
@@ -46,5 +46,5 @@ def test_dataset_navigation_is_available_after_login(
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert 'href="/research/datasets"' in html
-    assert "测试数据" in html
+    assert 'href="/research/datasets"' not in html
+    assert "测试数据" not in html

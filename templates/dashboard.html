@@ -14,15 +14,12 @@
             <a class="dashboard-rail-link is-active" href="{{ url_for('dashboard') }}" title="首页">
                 <span aria-hidden="true">⌂</span><small>首页</small>
             </a>
-            <a class="dashboard-rail-link" href="{{ url_for('knowledge_center') }}" title="健康知识">
-                <span aria-hidden="true">📖</span><small>知识</small>
-            </a>
-            <a class="dashboard-rail-link" href="{{ url_for('research_datasets') }}" title="测试集与验证记录">
-                <span aria-hidden="true">▦</span><small>数据</small>
-            </a>
-            {% if current_user['account_type'] in ['elder', 'admin'] %}
+            {% if current_user['account_type'] == 'elder' %}
                 <a class="dashboard-rail-link" href="{{ url_for('assistant_page') }}" title="智慧陪伴">
                     <span aria-hidden="true">💬</span><small>陪伴</small>
+                </a>
+                <a class="dashboard-rail-link" href="{{ url_for('elder_voice_library') }}" title="选择陪伴声音">
+                    <span aria-hidden="true">🎙</span><small>声音</small>
                 </a>
                 <a class="dashboard-rail-link" href="{{ url_for('idiom_game_page') }}" title="成语接龙">
                     <span aria-hidden="true">🧩</span><small>游戏</small>
@@ -30,15 +27,30 @@
                 <a class="dashboard-rail-link" href="{{ url_for('history') }}" title="历史结果">
                     <span aria-hidden="true">▥</span><small>历史</small>
                 </a>
-            {% else %}
+                <a class="dashboard-rail-link" href="{{ url_for('knowledge_center') }}" title="健康知识">
+                    <span aria-hidden="true">📖</span><small>知识</small>
+                </a>
+            {% elif current_user['account_type'] == 'family' %}
+                <a class="dashboard-rail-link" href="{{ url_for('family_briefs') }}" title="老人关怀报告">
+                    <span aria-hidden="true">📋</span><small>报告</small>
+                </a>
+                <a class="dashboard-rail-link" href="{{ url_for('voice_profiles_page') }}" title="家人声音授权">
+                    <span aria-hidden="true">🎙</span><small>声音</small>
+                </a>
                 <a class="dashboard-rail-link" href="{{ url_for('message_center') }}" title="照护留言">
                     <span aria-hidden="true">✉</span><small>留言</small>
                     {% if unread_message_count %}<b>{{ unread_message_count }}</b>{% endif %}
                 </a>
-            {% endif %}
-            {% if current_user['role'] == 'admin' %}
-                <a class="dashboard-rail-link" href="{{ url_for('admin_users') }}" title="用户管理">
-                    <span aria-hidden="true">👥</span><small>管理</small>
+                <a class="dashboard-rail-link" href="{{ url_for('knowledge_center') }}" title="健康知识">
+                    <span aria-hidden="true">📖</span><small>知识</small>
+                </a>
+            {% elif current_user['account_type'] == 'community' %}
+                <a class="dashboard-rail-link" href="{{ url_for('message_center') }}" title="服务留言">
+                    <span aria-hidden="true">✉</span><small>留言</small>
+                    {% if unread_message_count %}<b>{{ unread_message_count }}</b>{% endif %}
+                </a>
+                <a class="dashboard-rail-link" href="{{ url_for('knowledge_center') }}" title="健康知识">
+                    <span aria-hidden="true">📖</span><small>知识</small>
                 </a>
             {% endif %}
         </nav>
@@ -80,6 +92,12 @@
                             aria-label="{{ '切换到中文' if current_language == 'en' else 'Switch to English' }}">
                         <span aria-hidden="true">🌐</span>
                         <strong>{{ '中文' if current_language == 'en' else 'English' }}</strong>
+                    </button>
+                </form>
+                <form class="dashboard-signout-form" action="{{ url_for('logout') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button class="dashboard-signout-button" type="submit" title="退出登录" aria-label="退出登录">
+                        <span aria-hidden="true">↪</span><strong>退出登录</strong>
                     </button>
                 </form>
                 <a class="dashboard-help-link" href="{{ url_for('knowledge_center') }}">
@@ -135,17 +153,31 @@
                     </a>
                 </section>
 
+                {% if current_user['account_type'] == 'family' %}
+                <section class="panel family-report-card dashboard-care-card">
+                    <div class="section-title-row">
+                        <span class="report-section-icon" aria-hidden="true">📋</span>
+                        <div>
+                            <span class="dashboard-eyebrow">关怀摘要</span>
+                            <h2>老人关怀报告</h2>
+                            <p>查看已授权老人的聊天关怀摘要，并按需生成新的报告。</p>
+                        </div>
+                    </div>
+                    <a class="button button-wide" href="{{ url_for('family_briefs') }}">查看老人报告</a>
+                </section>
+                {% else %}
                 <section class="panel quick-knowledge-card dashboard-care-card">
                     <div class="section-title-row">
                         <span class="report-section-icon" aria-hidden="true">📚</span>
                         <div>
                             <span class="dashboard-eyebrow">照护支持</span>
                             <h2>健康知识中心</h2>
-                            <p>查看沟通陪伴、生活安全和家庭支持建议。</p>
+                            <p>查看面向社区协作与生活支持的知识内容。</p>
                         </div>
                     </div>
                     <a class="button button-wide" href="{{ url_for('knowledge_center') }}">进入知识中心</a>
                 </section>
+                {% endif %}
             </div>
 
             <header class="dashboard-section-heading">
@@ -166,7 +198,7 @@
                                 <p>已完成 {{ elder['assessment_count'] }} 次测试 · 最近测试：{{ elder['latest_assessment_at'] | local_datetime }}</p>
                             </div>
                             <div class="elder-actions">
-                                <a class="button" href="{{ url_for('elder_history', elder_id=elder['id']) }}">查看结果与报告</a>
+                                <a class="button" href="{{ url_for('elder_history', elder_id=elder['id']) }}">查看测试结果与报告</a>
                                 <form action="{{ url_for('remove_binding', elder_id=elder['id']) }}" method="post"
                                     onsubmit="return confirm('确定解除与{{ elder['display_name'] }}的绑定吗？');">
                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -253,6 +285,11 @@
                         <a class="dashboard-action-row" href="{{ url_for('assistant_page') }}">
                             <span class="dashboard-action-icon action-blue" aria-hidden="true">💬</span>
                             <span><strong>智慧陪伴聊天</strong><small>说说话，也可以使用大按钮语音输入</small></span>
+                            <b aria-hidden="true">→</b>
+                        </a>
+                        <a class="dashboard-action-row" href="{{ url_for('elder_voice_library') }}">
+                            <span class="dashboard-action-icon action-green" aria-hidden="true">🎙</span>
+                            <span><strong>选择陪伴声音</strong><small>从家人已授权的声音库中选择您想听到的声音</small></span>
                             <b aria-hidden="true">→</b>
                         </a>
                         <a class="dashboard-action-row" href="{{ url_for('idiom_game_page') }}">

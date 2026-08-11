@@ -76,26 +76,28 @@ def test_login_success_and_wrong_password(
     token = csrf_for_anonymous(client)
 
     wrong = client.post(
-        "/login",
+        "/login?account_type=elder",
         data={
             "_csrf_token": token,
             "username": "login_user",
             "password": "Wrong12345",
+            "account_type": "elder",
         },
     )
     assert wrong.status_code == 200
     assert "账号或密码不正确" in wrong.get_data(as_text=True)
 
     correct = client.post(
-        "/login",
+        "/login?account_type=elder",
         data={
             "_csrf_token": token,
             "username": "login_user",
             "password": "Test12345",
+            "account_type": "elder",
         },
     )
     assert correct.status_code == 302
-    assert correct.headers["Location"].endswith("/assistant")
+    assert correct.headers["Location"].endswith("/elder")
 
 
 def test_all_account_types_can_open_their_dashboard(

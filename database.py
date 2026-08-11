@@ -1614,16 +1614,12 @@ def get_assessment(assessment_id):
 def create_voice_profile(elder_id, created_by, label, remote_voice_id):
     connection = get_db()
     now = utc_now()
-    connection.execute(
-        "UPDATE voice_profiles SET is_active = 0 WHERE elder_id = ?",
-        (elder_id,),
-    )
     cursor = connection.execute(
         """
         INSERT INTO voice_profiles (
             elder_id, created_by, label, remote_voice_id,
             consented_at, is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, 1, ?)
+        ) VALUES (?, ?, ?, ?, ?, 0, ?)
         """,
         (elder_id, created_by, label, remote_voice_id, now, now),
     )

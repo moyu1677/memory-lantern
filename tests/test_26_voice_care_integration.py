@@ -20,9 +20,10 @@ def test_voice_chat_is_elder_only_and_returns_a_server_issued_reply_token(
     family = user_factory(account_type="family")
     _bind(app_module, family, elder)
     with app_module.app.app_context():
-        app_module.database.create_voice_profile(
+        profile_id = app_module.database.create_voice_profile(
             elder["id"], family["id"], "女儿小安", "voice-test-001"
         )
+        app_module.database.activate_voice_profile(elder["id"], profile_id)
     monkeypatch.setattr(
         app_module,
         "get_ai_reply",
@@ -52,14 +53,15 @@ def test_voice_synthesis_rejects_forged_text_and_allows_the_issued_reply_once(
     family = user_factory(account_type="family")
     _bind(app_module, family, elder)
     with app_module.app.app_context():
-        app_module.database.create_voice_profile(
+        profile_id = app_module.database.create_voice_profile(
             elder["id"], family["id"], "儿子小明", "voice-test-002"
         )
+        app_module.database.activate_voice_profile(elder["id"], profile_id)
     calls = []
     monkeypatch.setattr(
         app_module,
         "voice_service",
-        SimpleNamespace(synthesize=lambda voice_id, text: (calls.append((voice_id, text)) or (b"RIFF", "audio/wav"))),
+        SimpleNamespace(synthesize=lambda voice_id, text, **kwargs: (calls.append((voice_id, text, kwargs)) or (b"RIFF", "audio/wav"))),
     )
     token = login_as(client, elder["id"])
     reply_token = app_module.issue_voice_reply_token(elder["id"], "慢慢来，不着急。")
@@ -67,7 +69,10 @@ def test_voice_synthesis_rejects_forged_text_and_allows_the_issued_reply_once(
     forged = client.post("/voice/synthesize", json={"text": "替我说任意内容"}, headers=api_headers(token))
     repeated = client.post("/voice/synthesize", json={"reply_token": reply_token}, headers=api_headers(token))
     assert first.status_code == 200 and first.mimetype == "audio/wav"
-    assert calls == [("voice-test-002", "慢慢来，不着急。")]
+    assert calls == [(
+        "voice-test-002", "慢慢来，不着急。",
+        {"emotion_text": "语气认真、平和，带一点关切；不要焦急、不要紧张、不要夸张。", "emotion_strength": 0.26},
+    )]
     assert forged.status_code == 400
     assert repeated.status_code == 400
 

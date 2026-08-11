@@ -4,10 +4,10 @@ param(
     [int]$AppPort = 5000,
 
     [ValidateRange(1024, 65535)]
-    [int]$TtsPort = 15000,
+    [int]$TtsPort = 15006,
 
     [ValidateRange(1024, 65535)]
-    [int]$AsrPort = 15001,
+    [int]$AsrPort = 15007,
 
     [switch]$NoBrowser,
 
@@ -36,7 +36,8 @@ function Wait-ForTunnelHealth {
     param(
         [string]$ServiceName,
         [string]$Uri,
-        [System.Diagnostics.Process]$Tunnel,
+        [AllowNull()]
+        [System.Diagnostics.Process]$Tunnel = $null,
         [int]$TimeoutSeconds = 20,
         [switch]$RequireModelLoaded
     )
@@ -44,7 +45,7 @@ function Wait-ForTunnelHealth {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $lastError = 'No response yet.'
     while ((Get-Date) -lt $deadline) {
-        if ($Tunnel.HasExited) {
+        if ($null -ne $Tunnel -and $Tunnel.HasExited) {
             throw "$ServiceName process exited before it became reachable (exit code $($Tunnel.ExitCode))."
         }
         try {
@@ -114,14 +115,18 @@ if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
     throw 'DEEPSEEK_API_KEY is empty.'
 }
 
-if (Get-NetTCPConnection -State Listen -LocalPort $TtsPort -ErrorAction SilentlyContinue) {
-    throw "Local port $TtsPort is already in use. Choose another -TtsPort."
+$ttsPortInUse = [bool](Get-NetTCPConnection -State Listen -LocalPort $TtsPort -ErrorAction SilentlyContinue)
+$asrPortInUse = [bool](Get-NetTCPConnection -State Listen -LocalPort $AsrPort -ErrorAction SilentlyContinue)
+if ($ttsPortInUse -xor $asrPortInUse) {
+    throw "Only one automatic-tunnel port is occupied. Stop the incomplete tunnel or choose a different TTS/ASR port pair."
 }
-if (Get-NetTCPConnection -State Listen -LocalPort $AsrPort -ErrorAction SilentlyContinue) {
-    throw "Local port $AsrPort is already in use. Choose another -AsrPort."
-}
+$reuseExistingTunnel = $ttsPortInUse -and $asrPortInUse
 
-Write-Host 'Opening a controlled SSH tunnel to teacher-server IndexTTS2...'
+if ($reuseExistingTunnel) {
+    Write-Host 'Reusing the existing controlled ASR and IndexTTS2 tunnel pair...'
+} else {
+    Write-Host 'Opening a controlled SSH tunnel to teacher-server IndexTTS2...'
+}
 
 # Read each remote service key from its own running directory; keep both only in memory.
 $remoteVoiceApiKey = (Get-RemoteServiceKey -Port 5000 -KeyName 'VOICE_API_KEY').Trim()
@@ -137,16 +142,18 @@ $forwardSpec = '{0}:127.0.0.1:5000' -f $TtsPort
 $asrForwardSpec = '{0}:127.0.0.1:8000' -f $AsrPort
 
 try {
-    # One SSH process forwards both local ports. ExitOnForwardFailure prevents a
-    # hidden tunnel from appearing healthy when either port could not bind.
-    $tunnel = Start-Process -FilePath 'ssh' -ArgumentList @(
-        '-N',
-        '-o', 'ExitOnForwardFailure=yes',
-        '-o', 'ConnectTimeout=12',
-        '-L', $forwardSpec,
-        '-L', $asrForwardSpec,
-        $SshHost
-    ) -WindowStyle Hidden -PassThru
+    if (-not $reuseExistingTunnel) {
+        # One SSH process forwards both local ports. ExitOnForwardFailure prevents a
+        # hidden tunnel from appearing healthy when either port could not bind.
+        $tunnel = Start-Process -FilePath 'ssh' -ArgumentList @(
+            '-N',
+            '-o', 'ExitOnForwardFailure=yes',
+            '-o', 'ConnectTimeout=12',
+            '-L', $forwardSpec,
+            '-L', $asrForwardSpec,
+            $SshHost
+        ) -WindowStyle Hidden -PassThru
+    }
 
     $health = Wait-ForTunnelHealth 'IndexTTS2' "http://127.0.0.1:$TtsPort/health" $tunnel -TimeoutSeconds 180 -RequireModelLoaded
     if ($health.status -ne 'ok') {

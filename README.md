@@ -77,11 +77,13 @@ GitHub、群聊或截图中。
 
 ### 4. 启动
 
+日常演示必须使用项目启动器；它会在后台自动建立受控的 ASR 与 IndexTTS2 连接，完成健康检查后再打开浏览器。不要单独运行 `python app.py`，否则页面能够打开但语音识别和家人声音服务不会自动接入。
+
 ```powershell
-python app.py
+.\run_voice_demo.ps1
 ```
 
-浏览器访问：
+启动器默认打开：
 
 ```text
 http://127.0.0.1:5000
@@ -96,17 +98,21 @@ git clone https://github.com/moyu1677/memory-lantern.git
 cd memory-lantern
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\python.exe app.py
 ```
 
-启动后访问 `http://127.0.0.1:5000`。每位成员只需在自己的 `.env` 填写自己的 `FLASK_SECRET_KEY`；需要联网对话时再填写自己的 `DEEPSEEK_API_KEY`。
+完整体验（语音转写、家人声音与聊天）统一使用自动启动器：
 
-如果 5000 端口已经被其他本地程序占用，在启动前执行 `$env:FLASK_PORT = '5055'`，然后访问 `http://127.0.0.1:5055`。
+```powershell
+.\run_voice_demo.ps1
+```
 
-打开根地址后先选择对应的登录入口：老人、家人、社区或管理员。登录成功后只会进入该账号被授权的工作台：老人端使用 `/assistant`，家人端在 `/voice-profiles` 管理已绑定老人的声音库并在 `/family-briefs` 查看关怀报告，社区与管理员端分别进入各自的协作和管理功能。
+它会自动建立受控的 ASR 与 IndexTTS2 SSH 隧道、在内存中取得运行凭证并健康检查后再打开网页；使用者不需要手动连接远程服务器，也不会把密钥写入 GitHub。若 5000 端口被占用，可使用 `.\run_voice_demo.ps1 -AppPort 5055`，然后访问 `http://127.0.0.1:5055`。
 
-录音识别与授权音色合成依赖受控的远程 ASR 和 IndexTTS2 服务，因此运行该链路的成员还需按 `.env.example` 配置 `ASR_URL`、`ASR_API_KEY`、`INDEXTTS2_URL`、`INDEXTTS2_API_KEY`。这些值由语音服务负责人单独、安全地发放，绝不能提交到 GitHub；服务未配置时，老人端仍会保留原有浏览器朗读和文字聊天，不会跳转到另一套页面。
+仅做页面开发或离线测试时，才需要 `Copy-Item .env.example .env` 后运行 `.\.venv\Scripts\python.exe app.py`；这类启动方式不会自动连接语音服务。
+
+打开根地址后使用统一登录页：先选择服务端，再使用该端账号登录。老人端会先进入 `/elder` 首页，再选择认知测试、双模式语音陪聊或“选择陪伴声音”；家人端可在 `/voice-profiles` 录音或上传声音、核对转写并授权入库，随后由老人本人决定使用哪一条声音；家人也可在 `/family-briefs` 查看关怀报告。社区与管理员端分别进入协作与管理功能。登录页同时展示语音互动、家人声音与聊天关怀提取能力，并可通过右上角按钮切换中英文。
+
+录音识别与授权音色合成依赖受控的远程 ASR 和 IndexTTS2 服务。日常演示请使用上方自动启动器；只有部署到没有既有 SSH 配置的机器时，才需要由语音服务负责人安全地配置 `ASR_URL`、`ASR_API_KEY`、`INDEXTTS2_URL`、`INDEXTTS2_API_KEY`。这些值绝不能提交到 GitHub。
 
 更完整的安装、密钥、麦克风和常见问题说明见：
 [项目配置与运行说明](docs/项目配置与运行说明.md)。

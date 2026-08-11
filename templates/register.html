@@ -7,12 +7,27 @@
     <div class="auth-intro">
         <div class="auth-icon" aria-hidden="true">📝</div>
         <h1 id="register-title">注册新账号</h1>
-        <p>先选择您的使用身份，再填写账号信息。账号名称不能与他人重复。</p>
+        {% if selected_portal %}
+        <p>当前注册端：<strong>{{ selected_portal.label }}</strong>。注册后，请从相同服务端登录。</p>
+        {% else %}
+        <p>先选择您的使用身份，再填写账号信息。账号会固定至该服务端，名称不能与他人重复。</p>
+        {% endif %}
     </div>
 
     <form class="form-grid" method="post" autocomplete="on">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
 
+        {% if selected_portal %}
+        <input type="hidden" name="account_type" value="{{ selected_portal.account_type }}">
+        <div class="register-portal-notice">
+            <span aria-hidden="true">{{ selected_portal.icon }}</span>
+            <div>
+                <strong>{{ selected_portal.label }}</strong>
+                <p>{{ selected_portal.description }}</p>
+            </div>
+            <a href="{{ url_for('login') }}">更换服务端</a>
+        </div>
+        {% else %}
         <fieldset class="role-picker">
             <legend>请选择账户类型</legend>
             <label class="role-choice role-choice-elder">
@@ -37,6 +52,7 @@
                 <small>服务老人、查看结果并与家属留言</small>
             </label>
         </fieldset>
+        {% endif %}
 
         <div class="field">
             <label for="username">账号名称</label>

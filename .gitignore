@@ -16,6 +16,7 @@ data/chroma_db/
 # Codex/local temporary work files and Office lock files
 .codex_tmp/
 tmp/
+/.playwright-cli/
 ~$*
 
 # Local copies of generated documents kept at the repository root
