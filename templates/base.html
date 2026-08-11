@@ -33,11 +33,16 @@
                             留言中心{% if unread_message_count %}（{{ unread_message_count }}）{% endif %}
                         </a>
                     {% endif %}
+                    {% if current_user['account_type'] == 'family' %}
+                        <a href="{{ url_for('voice_profiles_page') }}">声音授权</a>
+                        <a href="{{ url_for('family_briefs') }}">关怀报告</a>
+                    {% endif %}
                     {% if current_user['role'] == 'admin' %}
                         <a href="{{ url_for('admin_users') }}">用户管理</a>
                         <a href="{{ url_for('admin_drawings') }}">绘图复核</a>
                         <a href="{{ url_for('admin_knowledge') }}">知识管理</a>
                         <a href="{{ url_for('admin_rag_documents') }}">RAG文档</a>
+                        <a href="{{ url_for('admin_care_report_validation') }}">报告验证</a>
                     {% endif %}
                     <form class="nav-form" action="{{ url_for('logout') }}" method="post">
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">

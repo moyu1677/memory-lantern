@@ -53,6 +53,8 @@ def app_module():
 
     imported_app.TEST_SESSIONS.clear()
     imported_app.IDIOM_GAME_SESSIONS.clear()
+    imported_app.VOICE_CHAT_SESSIONS.clear()
+    imported_app.AUDIO_DEMO_SESSIONS.clear()
     for suffix in ("", "-wal", "-shm"):
         candidate = Path(f"{database_path}{suffix}")
         if candidate.exists():
@@ -68,6 +70,10 @@ def clean_mutable_state(app_module):
             """
             DELETE FROM drawing_reviews;
             DELETE FROM drawing_submissions;
+            DELETE FROM care_reports;
+            DELETE FROM need_cards;
+            DELETE FROM voice_profiles;
+            DELETE FROM audio_demo_voices;
             DELETE FROM messages;
             DELETE FROM care_bindings;
             DELETE FROM knowledge_favorites;
@@ -81,6 +87,10 @@ def clean_mutable_state(app_module):
                 'messages',
                 'drawing_reviews',
                 'drawing_submissions',
+                'care_reports',
+                'need_cards',
+                'voice_profiles',
+                'audio_demo_voices',
                 'care_bindings',
                 'knowledge_favorites',
                 'knowledge_chunks',
@@ -94,9 +104,13 @@ def clean_mutable_state(app_module):
         connection.commit()
     app_module.TEST_SESSIONS.clear()
     app_module.IDIOM_GAME_SESSIONS.clear()
+    app_module.VOICE_CHAT_SESSIONS.clear()
+    app_module.AUDIO_DEMO_SESSIONS.clear()
     yield
     app_module.TEST_SESSIONS.clear()
     app_module.IDIOM_GAME_SESSIONS.clear()
+    app_module.VOICE_CHAT_SESSIONS.clear()
+    app_module.AUDIO_DEMO_SESSIONS.clear()
 
 
 @pytest.fixture

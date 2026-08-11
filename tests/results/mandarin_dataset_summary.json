@@ -1,0 +1,15 @@
+{
+  "provenance": "Published aggregate recorded in the project evaluation material; raw recordings and per-sample transcripts are intentionally not stored in the repository.",
+  "scope": "Common Voice Beijing Mandarin public read-speech subset. This is an ASR engineering measurement, not older-adult spontaneous speech, cognitive accuracy, or clinical evidence.",
+  "overall": {
+    "samples": 100,
+    "successful": 99,
+    "success_rate_percent": 99.0,
+    "character_accuracy_percent": 92.93,
+    "normalized_cer_percent": 7.07,
+    "raw_cer_percent": 7.07,
+    "perfect_transcription_rate_percent": 0.0,
+    "latency_mean_s": 6.33,
+    "latency_p95_s": 10.0084
+  }
+}

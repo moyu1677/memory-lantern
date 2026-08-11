@@ -175,6 +175,78 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
 CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source
 ON knowledge_chunks(source_type, source_id, chunk_index);
 
+CREATE TABLE IF NOT EXISTS voice_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    elder_id INTEGER NOT NULL,
+    created_by INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    remote_voice_id TEXT NOT NULL,
+    consented_at TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1
+        CHECK (is_active IN (0, 1)),
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    UNIQUE(elder_id, remote_voice_id),
+    FOREIGN KEY (elder_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_profiles_elder_active
+ON voice_profiles(elder_id, is_active, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS audio_demo_voices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    remote_voice_id TEXT NOT NULL UNIQUE,
+    sample_transcript TEXT NOT NULL DEFAULT '',
+    positive_emotion_ready INTEGER NOT NULL DEFAULT 0
+        CHECK (positive_emotion_ready IN (0, 1)),
+    positive_emotion_transcript TEXT NOT NULL DEFAULT '',
+    comfort_emotion_ready INTEGER NOT NULL DEFAULT 0
+        CHECK (comfort_emotion_ready IN (0, 1)),
+    comfort_emotion_transcript TEXT NOT NULL DEFAULT '',
+    is_active INTEGER NOT NULL DEFAULT 1
+        CHECK (is_active IN (0, 1)),
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audio_demo_voices_active
+ON audio_demo_voices(is_active, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS need_cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    elder_id INTEGER NOT NULL,
+    source_session_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    polarity TEXT NOT NULL,
+    directness TEXT NOT NULL,
+    evidence TEXT NOT NULL,
+    share_confirmed INTEGER NOT NULL
+        CHECK (share_confirmed IN (0, 1)),
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (elder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_need_cards_elder_created
+ON need_cards(elder_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS care_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    elder_id INTEGER NOT NULL,
+    source_session_id TEXT NOT NULL,
+    status TEXT NOT NULL
+        CHECK (status IN ('signals_present', 'insufficient_or_conflicting')),
+    summary TEXT NOT NULL,
+    signals_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (elder_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_care_reports_elder_created
+ON care_reports(elder_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS drawing_submissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     submission_id TEXT NOT NULL UNIQUE,
@@ -1534,3 +1606,285 @@ def get_assessment(assessment_id):
         """,
         (assessment_id,),
     ).fetchone()
+
+
+# Voice and care-report records deliberately store only remote voice IDs and
+# consented, bounded summaries. Reference recordings and full conversations
+# never enter this database.
+def create_voice_profile(elder_id, created_by, label, remote_voice_id):
+    connection = get_db()
+    now = utc_now()
+    connection.execute(
+        "UPDATE voice_profiles SET is_active = 0 WHERE elder_id = ?",
+        (elder_id,),
+    )
+    cursor = connection.execute(
+        """
+        INSERT INTO voice_profiles (
+            elder_id, created_by, label, remote_voice_id,
+            consented_at, is_active, created_at
+        ) VALUES (?, ?, ?, ?, ?, 1, ?)
+        """,
+        (elder_id, created_by, label, remote_voice_id, now, now),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def list_voice_profiles(elder_id, created_by=None):
+    sql = """
+        SELECT p.*, creator.display_name AS creator_name
+        FROM voice_profiles AS p
+        JOIN users AS creator ON creator.id = p.created_by
+        WHERE p.elder_id = ?
+    """
+    parameters = [elder_id]
+    if created_by is not None:
+        sql += " AND p.created_by = ?"
+        parameters.append(created_by)
+    sql += " ORDER BY p.is_active DESC, p.created_at DESC"
+    return get_db().execute(sql, parameters).fetchall()
+
+
+def get_active_voice_profile(elder_id):
+    return get_db().execute(
+        """
+        SELECT * FROM voice_profiles
+        WHERE elder_id = ? AND is_active = 1
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (elder_id,),
+    ).fetchone()
+
+
+def get_voice_profile(profile_id):
+    return get_db().execute(
+        "SELECT * FROM voice_profiles WHERE id = ?", (profile_id,)
+    ).fetchone()
+
+
+def activate_voice_profile(elder_id, profile_id):
+    connection = get_db()
+    found = connection.execute(
+        "SELECT 1 FROM voice_profiles WHERE id = ? AND elder_id = ?",
+        (profile_id, elder_id),
+    ).fetchone()
+    if found is None:
+        return False
+    connection.execute(
+        "UPDATE voice_profiles SET is_active = 0 WHERE elder_id = ?",
+        (elder_id,),
+    )
+    connection.execute(
+        "UPDATE voice_profiles SET is_active = 1 WHERE id = ?",
+        (profile_id,),
+    )
+    connection.commit()
+    return True
+
+
+def mark_voice_profile_used(profile_id):
+    connection = get_db()
+    connection.execute(
+        "UPDATE voice_profiles SET last_used_at = ? WHERE id = ?",
+        (utc_now(), profile_id),
+    )
+    connection.commit()
+
+
+def delete_voice_profile(profile_id):
+    """Delete a local voice index after its remote reference is removed."""
+
+    connection = get_db()
+    cursor = connection.execute("DELETE FROM voice_profiles WHERE id = ?", (profile_id,))
+    connection.commit()
+    return cursor.rowcount == 1
+
+
+def create_audio_demo_voice(label, remote_voice_id):
+    """Store a public-demo voice record; source audio remains remote."""
+
+    connection = get_db()
+    now = utc_now()
+    connection.execute("UPDATE audio_demo_voices SET is_active = 0")
+    cursor = connection.execute(
+        """
+        INSERT INTO audio_demo_voices (label, remote_voice_id, is_active, created_at)
+        VALUES (?, ?, 1, ?)
+        """,
+        (label, remote_voice_id, now),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def list_audio_demo_voices():
+    return get_db().execute(
+        "SELECT * FROM audio_demo_voices ORDER BY is_active DESC, created_at DESC"
+    ).fetchall()
+
+
+def get_audio_demo_voice(voice_id):
+    return get_db().execute(
+        "SELECT * FROM audio_demo_voices WHERE id = ?", (voice_id,)
+    ).fetchone()
+
+
+def get_active_audio_demo_voice():
+    return get_db().execute(
+        """
+        SELECT * FROM audio_demo_voices
+        WHERE is_active = 1
+        ORDER BY created_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+
+def activate_audio_demo_voice(voice_id):
+    connection = get_db()
+    if connection.execute(
+        "SELECT 1 FROM audio_demo_voices WHERE id = ?", (voice_id,)
+    ).fetchone() is None:
+        return False
+    connection.execute("UPDATE audio_demo_voices SET is_active = 0")
+    connection.execute(
+        "UPDATE audio_demo_voices SET is_active = 1 WHERE id = ?", (voice_id,)
+    )
+    connection.commit()
+    return True
+
+
+def mark_audio_demo_voice_used(voice_id):
+    connection = get_db()
+    connection.execute(
+        "UPDATE audio_demo_voices SET last_used_at = ? WHERE id = ?",
+        (utc_now(), voice_id),
+    )
+    connection.commit()
+
+
+def save_audio_demo_emotion_reference(voice_id, style):
+    columns = {
+        "positive": "positive_emotion_ready",
+        "comfort": "comfort_emotion_ready",
+    }
+    ready_column = columns.get(str(style or "").strip().lower())
+    if ready_column is None:
+        raise ValueError("unsupported emotion reference style")
+    connection = get_db()
+    cursor = connection.execute(
+        f"UPDATE audio_demo_voices SET {ready_column} = 1 WHERE id = ?",
+        (voice_id,),
+    )
+    connection.commit()
+    return cursor.rowcount == 1
+
+
+def delete_audio_demo_voice(voice_id):
+    connection = get_db()
+    cursor = connection.execute("DELETE FROM audio_demo_voices WHERE id = ?", (voice_id,))
+    connection.commit()
+    return cursor.rowcount == 1
+
+
+def save_need_card(elder_id, source_session_id, card):
+    """Persist only an elder-authorised bounded card, never raw dialogue."""
+
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        INSERT INTO need_cards (
+            elder_id, source_session_id, category, subject, polarity,
+            directness, evidence, share_confirmed, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+        """,
+        (
+            elder_id,
+            source_session_id,
+            card["category"],
+            card["subject"],
+            card["polarity"],
+            card["directness"],
+            card["evidence"],
+            utc_now(),
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def list_authorized_need_cards(caregiver_id, limit=3):
+    return get_db().execute(
+        """
+        SELECT n.*, elder.display_name AS elder_name
+        FROM need_cards AS n
+        JOIN care_bindings AS binding ON binding.elder_id = n.elder_id
+        JOIN users AS elder ON elder.id = n.elder_id
+        WHERE binding.caregiver_id = ? AND n.share_confirmed = 1
+        ORDER BY n.created_at DESC
+        LIMIT ?
+        """,
+        (caregiver_id, limit),
+    ).fetchall()
+
+
+def save_care_report(elder_id, source_session_id, report):
+    """Persist privacy-bounded report data without source conversation text."""
+
+    connection = get_db()
+    cursor = connection.execute(
+        """
+        INSERT INTO care_reports (
+            elder_id, source_session_id, status, summary, signals_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            elder_id,
+            source_session_id,
+            report["status"],
+            report["summary"],
+            json.dumps(report["signals"], ensure_ascii=False),
+            utc_now(),
+        ),
+    )
+    connection.commit()
+    return cursor.lastrowid
+
+
+def list_care_reports(caregiver_id, limit=12):
+    rows = get_db().execute(
+        """
+        SELECT report.id, report.elder_id, report.status, report.summary,
+               report.signals_json, report.created_at,
+               elder.display_name AS elder_name
+        FROM care_reports AS report
+        JOIN care_bindings AS binding ON binding.elder_id = report.elder_id
+        JOIN users AS elder ON elder.id = report.elder_id
+        WHERE binding.caregiver_id = ?
+        ORDER BY report.created_at DESC
+        LIMIT ?
+        """,
+        (caregiver_id, limit),
+    ).fetchall()
+    reports = []
+    for row in rows:
+        try:
+            signals = json.loads(row["signals_json"])
+        except (TypeError, json.JSONDecodeError):
+            signals = []
+        public_signals = []
+        if isinstance(signals, list):
+            for signal in signals:
+                if isinstance(signal, dict):
+                    public_signals.append(
+                        {
+                            key: signal.get(key, "")
+                            for key in (
+                                "area", "topic", "strength", "trend", "family_action"
+                            )
+                        }
+                    )
+        reports.append({**dict(row), "signals": public_signals})
+    return reports

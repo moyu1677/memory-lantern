@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}家庭关怀报告验证 · 忆路明灯{% endblock %}
+{% block content %}
+<section class="page-heading"><h1>家庭关怀报告验证</h1><p>只展示聚合验证指标与边界，不展示任何聊天内容。</p></section>
+<section class="panel">{% if validation %}<h2>任务对齐主验证</h2><div class="detail-grid">{% for key, value in validation.items() if key not in ['cases', 'details'] %}<article class="stat-card"><strong>{{ key }}</strong><p>{{ value }}</p></article>{% endfor %}</div><p>合格结构化报告经过格式、来源轮次、诊断禁用和隐私边界校验。</p>{% else %}<p>尚未找到已发布的聚合验证结果。</p>{% endif %}</section>
+{% endblock %}
