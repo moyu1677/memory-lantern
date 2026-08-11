@@ -1,0 +1,316 @@
+{
+  "version": "2.0-final-frozen",
+  "purpose": "24 个在模型调用前冻结的受控多轮案例。它检验的是系统是否能把已给定的聊天线索安全地归类、克制地放弃和给出对应行动类别；不把它表述为真实老人需求准确率或医疗结论。",
+  "action_type_definitions": {
+    "contact_companionship": "主动联系、倾听或陪伴",
+    "shared_activity": "一起参与一件具体活动",
+    "daily_step_support": "协助完成具体日常事项",
+    "safety_check": "先确认安全并陪同处理"
+  },
+  "cases": [
+    {
+      "id": "core_psych_contact",
+      "group": "clear_psychological",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["contact_companionship"],
+      "history": [
+        {"role": "user", "content": "这两天晚饭后屋里特别安静。"},
+        {"role": "assistant", "content": "您通常会做些什么呢？"},
+        {"role": "user", "content": "我不想总打扰孩子，可要是他们周末能跟我通一会儿电话，我会踏实些。"}
+      ]
+    },
+    {
+      "id": "core_psych_activity",
+      "group": "clear_psychological",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["shared_activity"],
+      "history": [
+        {"role": "user", "content": "楼下合唱团最近在排练，听着很热闹。"},
+        {"role": "assistant", "content": "您以前参加过吗？"},
+        {"role": "user", "content": "去过几次，一个人再去有些不好意思；家里人哪天有空陪我去看看就好了。"}
+      ]
+    },
+    {
+      "id": "core_psych_connection",
+      "group": "clear_psychological",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["contact_companionship"],
+      "history": [
+        {"role": "user", "content": "邻居这几天回老家了，我白天说话的人少了。"},
+        {"role": "assistant", "content": "您会想找人聊聊吗？"},
+        {"role": "user", "content": "我也没什么大事，就是希望孩子忙完能主动问问我近况。"}
+      ]
+    },
+    {
+      "id": "core_psych_community",
+      "group": "clear_psychological",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["shared_activity"],
+      "history": [
+        {"role": "user", "content": "社区下周有书画活动。"},
+        {"role": "assistant", "content": "听起来挺有意思。"},
+        {"role": "user", "content": "我想去，但第一次去不认识人；要是有人陪我一起看看，我会更愿意参加。"}
+      ]
+    },
+    {
+      "id": "core_daily_form",
+      "group": "clear_physical_or_daily",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "社区发的表格字很小，我看了半天也没填明白。"},
+        {"role": "assistant", "content": "什么时候要交呢？"},
+        {"role": "user", "content": "明天就截止，我怕填错；等孩子下班帮我核对一下就安心了。"}
+      ]
+    },
+    {
+      "id": "core_daily_heavy",
+      "group": "clear_physical_or_daily",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "桶装水送到门口了，我还没敢动。"},
+        {"role": "assistant", "content": "搬起来会不会太重？"},
+        {"role": "user", "content": "弯腰时容易站不稳，怕一个人搬会摔着；路过时有人顺手放好就行。"}
+      ]
+    },
+    {
+      "id": "core_safety_unsteady",
+      "group": "clear_physical_or_daily",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["safety_check"],
+      "history": [
+        {"role": "user", "content": "今天起身时眼前发黑了一下，我赶紧坐下了。"},
+        {"role": "assistant", "content": "现在好些了吗？"},
+        {"role": "user", "content": "现在缓过来了，但我不敢一个人出门，想先让家里人知道。"}
+      ]
+    },
+    {
+      "id": "core_daily_vision",
+      "group": "clear_physical_or_daily",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "药盒上的说明字太密，我总怕自己看错时间。"},
+        {"role": "assistant", "content": "有没有人能和您一起整理？"},
+        {"role": "user", "content": "下次家里人来时帮我把说明写大一点、一起理清楚就好。"}
+      ]
+    },
+    {
+      "id": "abstain_neutral_music",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "今天听了一下午老歌，越听越有味道。"},
+        {"role": "assistant", "content": "您喜欢哪一类歌？"},
+        {"role": "user", "content": "我把喜欢的几首记下来了，明天还想继续听。"}
+      ]
+    },
+    {
+      "id": "abstain_neutral_gardening",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "阳台上的薄荷长得不错。"},
+        {"role": "assistant", "content": "您平时怎么照顾它？"},
+        {"role": "user", "content": "每天浇一点水就行，我自己挺喜欢摆弄这些。"}
+      ]
+    },
+    {
+      "id": "abstain_resolved_light",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "前几天门口的灯坏了，晚上有些不方便。"},
+        {"role": "assistant", "content": "后来处理了吗？"},
+        {"role": "user", "content": "已经请人修好了，现在很亮，不需要再麻烦谁。"}
+      ]
+    },
+    {
+      "id": "abstain_resolved_energy",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "前两天有点累，下午总想躺着。"},
+        {"role": "assistant", "content": "今天感觉怎么样？"},
+        {"role": "user", "content": "已经恢复精神了，早上还去散步，不用担心。"}
+      ]
+    },
+    {
+      "id": "abstain_declined_social",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "有时晚饭后屋里会安静一点。"},
+        {"role": "assistant", "content": "家人要不要多陪您聊聊？"},
+        {"role": "user", "content": "不用特意安排，我晚上都和朋友下棋聊天，挺开心的。"}
+      ]
+    },
+    {
+      "id": "abstain_declined_task",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "水费单今天到了。"},
+        {"role": "assistant", "content": "需要一起看看吗？"},
+        {"role": "user", "content": "不用，我刚刚已经用手机交完了，没什么问题。"}
+      ]
+    },
+    {
+      "id": "abstain_conflicting_contact",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "有时候会觉得孩子很忙。"},
+        {"role": "assistant", "content": "您希望他们多联系吗？"},
+        {"role": "user", "content": "说不上来，有时想安静，有时又觉得聊聊也好，现在没有特别想让他们做什么。"}
+      ]
+    },
+    {
+      "id": "abstain_weather",
+      "group": "abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "今天下雨，空气凉快不少。"},
+        {"role": "assistant", "content": "您出门了吗？"},
+        {"role": "user", "content": "没有，坐窗边看雨挺舒服，明天晴了再去买菜。"}
+      ]
+    },
+    {
+      "id": "paraphrase_contact",
+      "group": "paired_paraphrase",
+      "paired_with": "core_psych_contact",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["contact_companionship"],
+      "history": [
+        {"role": "user", "content": "晚上一个人时总觉得有点空。"},
+        {"role": "assistant", "content": "您想怎样会舒服一些？"},
+        {"role": "user", "content": "不用孩子专门赶回来，得空给我打个电话、听我说几句就很好。"}
+      ]
+    },
+    {
+      "id": "paraphrase_form",
+      "group": "paired_paraphrase",
+      "paired_with": "core_daily_form",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "这张办事单上的小字我实在看不清。"},
+        {"role": "assistant", "content": "时间来得及吗？"},
+        {"role": "user", "content": "后天要交，怕漏填，想请家里人有空时陪我确认一下。"}
+      ]
+    },
+    {
+      "id": "distractor_activity",
+      "group": "paired_distractor",
+      "paired_with": "core_psych_activity",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "expected_action_types": ["shared_activity"],
+      "history": [
+        {"role": "user", "content": "今天天气很好，阳台的花也开了。"},
+        {"role": "assistant", "content": "听起来心情不错。"},
+        {"role": "user", "content": "是啊，不过楼下合唱团招新，我一个人去有点不好意思；家里人能陪我去看看就好了。"}
+      ]
+    },
+    {
+      "id": "distractor_heavy",
+      "group": "paired_distractor",
+      "paired_with": "core_daily_heavy",
+      "expected_relation": "same_signature",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "expected_action_types": ["daily_step_support"],
+      "history": [
+        {"role": "user", "content": "今天还听了几首戏曲，心情挺好。"},
+        {"role": "assistant", "content": "那很好。"},
+        {"role": "user", "content": "只是门口的水太重，弯腰时我站不稳，不敢自己搬；有人路过帮我放好就行。"}
+      ]
+    },
+    {
+      "id": "reversal_contact_resolved",
+      "group": "paired_reversal",
+      "paired_with": "core_psych_contact",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "前阵子晚饭后有点闷，想让孩子多打电话。"},
+        {"role": "assistant", "content": "现在呢？"},
+        {"role": "user", "content": "现在每天都会联系，周末也一起买菜，我过得很自在，不用特别操心。"}
+      ]
+    },
+    {
+      "id": "reversal_form_resolved",
+      "group": "paired_reversal",
+      "paired_with": "core_daily_form",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "昨天那张表字小，我当时担心填错。"},
+        {"role": "assistant", "content": "后来怎么办的？"},
+        {"role": "user", "content": "工作人员已经帮我核对并交好了，现在没有需要帮忙的事。"}
+      ]
+    },
+    {
+      "id": "reversal_activity_declined",
+      "group": "paired_reversal",
+      "paired_with": "core_psych_activity",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "楼下合唱团又在排练。"},
+        {"role": "assistant", "content": "要不要家人陪您去？"},
+        {"role": "user", "content": "不用安排，我已经和邻居约好一起去，挺期待的。"}
+      ]
+    },
+    {
+      "id": "reversal_daily_declined",
+      "group": "paired_reversal",
+      "paired_with": "core_daily_heavy",
+      "expected_relation": "must_abstain",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "expected_action_types": [],
+      "history": [
+        {"role": "user", "content": "桶装水刚到时我还担心太重。"},
+        {"role": "assistant", "content": "现在处理好了吗？"},
+        {"role": "user", "content": "配送员已经按约放到架子上了，我不用搬，也不需要谁来帮忙。"}
+      ]
+    }
+  ]
+}

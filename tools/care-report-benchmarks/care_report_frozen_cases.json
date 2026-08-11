@@ -1,0 +1,182 @@
+{
+  "version": "1.0",
+  "purpose": "验证关怀报告提取器在预先冻结的合成多轮对话上是否稳定、保守且不越界；不用于训练，也不代表真实老人群体的临床结论。",
+  "cases": [
+    {
+      "id": "psych_repeated_contact",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "history": [
+        {"role": "user", "content": "这两天家里很安静，电视开着也没什么劲。"},
+        {"role": "assistant", "content": "听起来您想找人说说话。"},
+        {"role": "user", "content": "孩子都忙，我也不想总去打扰他们。"},
+        {"role": "assistant", "content": "您愿意聊聊最近的安排吗？"},
+        {"role": "user", "content": "晚上一个人吃饭的时候，确实会觉得时间很长。"}
+      ]
+    },
+    {
+      "id": "psych_indirect_companionship",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "history": [
+        {"role": "user", "content": "今天又做多了菜，最后还是剩下不少。"},
+        {"role": "assistant", "content": "您平时很会照顾生活。"},
+        {"role": "user", "content": "一个人吃饭，做什么都提不起兴致。"},
+        {"role": "assistant", "content": "我在这里陪您聊聊。"},
+        {"role": "user", "content": "要是周末有人一起坐坐就好了。"}
+      ]
+    },
+    {
+      "id": "psych_negated_by_regular_contact",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "前阵子家里安静得很。"},
+        {"role": "assistant", "content": "最近有什么变化吗？"},
+        {"role": "user", "content": "现在孩子每天都会视频，周末也常来吃饭，我挺满足的。"}
+      ]
+    },
+    {
+      "id": "physical_mobility_support",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "这两天上楼时腿有些不得劲。"},
+        {"role": "assistant", "content": "这会不会影响家里的事情？"},
+        {"role": "user", "content": "去买米买油那样重的东西，我一个人拎着有点吃力。"},
+        {"role": "assistant", "content": "您先别勉强自己。"},
+        {"role": "user", "content": "下周还得去一趟超市。"}
+      ]
+    },
+    {
+      "id": "physical_mobility_resolved",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "前几天搬东西时腿有些不舒服。"},
+        {"role": "assistant", "content": "现在呢？"},
+        {"role": "user", "content": "后来邻居帮我搬好了，现在走路也没问题，不用担心。"}
+      ]
+    },
+    {
+      "id": "physical_sleep_repeated",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "最近连续几晚睡得不踏实，白天总觉得没精神。"},
+        {"role": "assistant", "content": "这种情况持续多久了？"},
+        {"role": "user", "content": "有一阵子了，白天做饭时也容易累。"},
+        {"role": "assistant", "content": "先注意休息。"},
+        {"role": "user", "content": "我想先和家里人说一声，免得他们不知道。"}
+      ]
+    },
+    {
+      "id": "physical_sleep_improved",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "前几天睡得不太好。"},
+        {"role": "assistant", "content": "这两天怎么样？"},
+        {"role": "user", "content": "这两晚已经睡得很踏实了，白天精神也不错。"}
+      ]
+    },
+    {
+      "id": "physical_daily_reading_support",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "药盒上的小字我这两天看着有点费劲。"},
+        {"role": "assistant", "content": "会影响您按平时安排使用吗？"},
+        {"role": "user", "content": "有时得戴着老花镜慢慢看，怕自己记错时间。"},
+        {"role": "assistant", "content": "可以找信任的人一起核对。"},
+        {"role": "user", "content": "下次家人来时，想请他们帮我把字写大一点。"}
+      ]
+    },
+    {
+      "id": "physical_daily_reading_resolved",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "原来药盒上的字有些难看清。"},
+        {"role": "assistant", "content": "后来解决了吗？"},
+        {"role": "user", "content": "家人已经帮我贴好大字标签，我现在看得清楚，也记得住。"}
+      ]
+    },
+    {
+      "id": "neutral_gardening",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "阳台上的月季今天开花了，颜色很好看。"},
+        {"role": "assistant", "content": "听起来很漂亮。"},
+        {"role": "user", "content": "我下午浇了水，还拍了张照片。"}
+      ]
+    },
+    {
+      "id": "neutral_weather",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "今天下雨，外面比前两天凉快多了。"},
+        {"role": "assistant", "content": "下雨天在家也很舒服。"},
+        {"role": "user", "content": "我正好煮了点茶，看电视新闻。"}
+      ]
+    },
+    {
+      "id": "contradictory_contact",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "上个月孩子工作忙，联系得少。"},
+        {"role": "assistant", "content": "最近有变化吗？"},
+        {"role": "user", "content": "这周他们每天都打电话，昨天还一起吃了饭，我没有什么想让他们操心的。"}
+      ]
+    },
+    {
+      "id": "physical_new_symptom_attention",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "今天走路时突然觉得头有点发晕。"},
+        {"role": "assistant", "content": "现在还有这种感觉吗？"},
+        {"role": "user", "content": "歇了一会儿好些了，不过我一个人在家，心里还是有点不踏实。"},
+        {"role": "assistant", "content": "先别一个人勉强活动。"},
+        {"role": "user", "content": "我想让家里人知道这件事。"}
+      ]
+    },
+    {
+      "id": "psych_community_activity",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "history": [
+        {"role": "user", "content": "以前楼下有活动我都会去，现在总觉得一个人去没意思。"},
+        {"role": "assistant", "content": "您原来喜欢和大家一起活动。"},
+        {"role": "user", "content": "要是有人陪我先去一次，我可能就愿意参加了。"},
+        {"role": "assistant", "content": "可以慢慢来。"},
+        {"role": "user", "content": "我不太好意思主动和孩子说。"}
+      ]
+    },
+    {
+      "id": "psych_repeated_but_declined",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "有时候晚上会觉得屋里安静。"},
+        {"role": "assistant", "content": "要不要请家人多联系？"},
+        {"role": "user", "content": "不用，他们工作忙，我现在每天和老朋友下棋，日子过得挺好。"}
+      ]
+    },
+    {
+      "id": "physical_household_support",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "厨房顶上的灯这两天总是一闪一闪的。"},
+        {"role": "assistant", "content": "会不会影响做饭？"},
+        {"role": "user", "content": "晚上看不清菜板，我又不敢自己踩凳子去修。"},
+        {"role": "assistant", "content": "您不必自己冒险处理。"},
+        {"role": "user", "content": "等孩子有空时帮我看一下就行。"}
+      ]
+    }
+  ]
+}

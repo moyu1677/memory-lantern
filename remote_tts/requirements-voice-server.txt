@@ -1,0 +1,4 @@
+# IndexTTS2 的远程环境当前已具备这些包；仅在新服务器缺失时才安装。
+fastapi
+uvicorn
+python-multipart

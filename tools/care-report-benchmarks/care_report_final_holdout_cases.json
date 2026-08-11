@@ -1,0 +1,104 @@
+{
+  "version": "1.0-holdout",
+  "purpose": "提示词调整后的最终独立合成验证集。案例在运行前冻结；不用于训练，也不代表真实老人群体的临床结论。",
+  "cases": [
+    {
+      "id": "holdout_psych_visit_wish",
+      "expected_status": "signals_present",
+      "expected_areas": ["psychological"],
+      "history": [
+        {"role": "user", "content": "楼下的合唱团又在排练，我听着挺热闹。"},
+        {"role": "assistant", "content": "您以前参加过吗？"},
+        {"role": "user", "content": "以前去过几次，现在一个人去总觉得不好意思。"},
+        {"role": "assistant", "content": "有人陪着或许会轻松一些。"},
+        {"role": "user", "content": "家里人哪天有空陪我去看看就好了。"}
+      ]
+    },
+    {
+      "id": "holdout_psych_regular_positive",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "以前总怕孩子没空。"},
+        {"role": "assistant", "content": "现在呢？"},
+        {"role": "user", "content": "现在每天都会通话，周日还一起买菜，我过得很自在。"}
+      ]
+    },
+    {
+      "id": "holdout_daily_heavy_delivery",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "刚送来的桶装水放在门口，我还没敢动。"},
+        {"role": "assistant", "content": "搬起来会不会太重？"},
+        {"role": "user", "content": "我弯腰时容易站不稳，怕一个人搬会摔着。"},
+        {"role": "assistant", "content": "先不要勉强。"},
+        {"role": "user", "content": "想等家里人路过时顺手帮我放好。"}
+      ]
+    },
+    {
+      "id": "holdout_daily_fixed_light",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "前几天门口的灯坏了，晚上有些不方便。"},
+        {"role": "assistant", "content": "后来处理了吗？"},
+        {"role": "user", "content": "已经请人修好了，现在亮堂得很，不需要再麻烦谁。"}
+      ]
+    },
+    {
+      "id": "holdout_physical_restored_energy",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "前两天有点累，下午总想躺着。"},
+        {"role": "assistant", "content": "今天感觉怎么样？"},
+        {"role": "user", "content": "今天已经恢复精神了，早上还去散了步，不用担心。"}
+      ]
+    },
+    {
+      "id": "holdout_physical_form_reading",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "社区发的表格字太小，我看了半天也没填明白。"},
+        {"role": "assistant", "content": "这件事有截止时间吗？"},
+        {"role": "user", "content": "明天就要交，我怕填错了耽误事情。"},
+        {"role": "assistant", "content": "可以请信任的人一起看看。"},
+        {"role": "user", "content": "等孩子下班时帮我核对一下就安心了。"}
+      ]
+    },
+    {
+      "id": "holdout_neutral_music",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "今天听了一下午老歌，越听越有味道。"},
+        {"role": "assistant", "content": "您喜欢哪一类歌？"},
+        {"role": "user", "content": "我把几首喜欢的都记下来了，明天还想继续听。"}
+      ]
+    },
+    {
+      "id": "holdout_declined_social_help",
+      "expected_status": "insufficient_or_conflicting",
+      "expected_areas": [],
+      "history": [
+        {"role": "user", "content": "有时候晚饭后屋里会静一点。"},
+        {"role": "assistant", "content": "家人要不要多陪您聊聊？"},
+        {"role": "user", "content": "不用特意安排，我晚上都会和朋友下棋聊天，挺开心的。"}
+      ]
+    },
+    {
+      "id": "holdout_physical_new_dizziness",
+      "expected_status": "signals_present",
+      "expected_areas": ["physical_or_daily"],
+      "history": [
+        {"role": "user", "content": "今天起身时眼前发黑了一下，我就赶紧坐下了。"},
+        {"role": "assistant", "content": "现在感觉如何？"},
+        {"role": "user", "content": "现在好一些，但我不敢自己出门，想先让家里人知道。"},
+        {"role": "assistant", "content": "先把安全放在第一位。"},
+        {"role": "user", "content": "明天如果还这样，我希望有人能陪我处理。"}
+      ]
+    }
+  ]
+}

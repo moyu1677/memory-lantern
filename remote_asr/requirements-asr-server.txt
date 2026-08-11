@@ -1,0 +1,8 @@
+# Install these on the GPU ASR server; model weights and ffmpeg are provisioned separately.
+fastapi
+uvicorn
+python-multipart
+torch
+transformers
+accelerate
+librosa
