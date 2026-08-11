@@ -95,7 +95,7 @@ def test_login_success_and_wrong_password(
         },
     )
     assert correct.status_code == 302
-    assert correct.headers["Location"].endswith("/dashboard")
+    assert correct.headers["Location"].endswith("/assistant")
 
 
 def test_all_account_types_can_open_their_dashboard(
