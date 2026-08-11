@@ -868,7 +868,7 @@
                 </div>
                 <select id="speech-mode">
                     {% if current_language == 'en' %}<option value="english">English (browser)</option>{% endif %}
-                    <option value="mandarin">普通话（腾讯云优先，浏览器备用）</option>
+                    <option value="mandarin">普通话（项目语音识别）</option>
                     <option value="browser">普通话（仅浏览器）</option>
                     <option value="cantonese">粤语（腾讯云）</option>
                     <option value="chaoshan">潮汕话（腾讯云）</option>
@@ -1010,7 +1010,14 @@
                 setTestMode(true, data.progress);
                 appendMessage(data.reply, 'ai');
                 setCurrentQuestion(data.question);
-                speakText(data.reply);
+                if (data.voice_reply_token) {
+                    await speakAuthorizedFamilyVoice(
+                        data.voice_reply_token,
+                        data.reply
+                    );
+                } else {
+                    speakText(data.reply);
+                }
             } catch (error) {
                 appendMessage(error.message || '测试启动失败，请稍后再试。', 'ai');
             } finally {
@@ -1071,7 +1078,7 @@
             try {
                 // 测试模式由本地规则判分，普通聊天才调用 DeepSeek。
                 const response = await fetch(
-                    isTesting ? '/test/answer' : '/chat',
+                    isTesting ? '/test/answer' : '/voice/chat',
                     {
                     method: 'POST',
                     headers: csrfHeaders({ 'Content-Type': 'application/json' }),
@@ -1089,7 +1096,11 @@
 
                 removeMessage(loadingId);
                 appendMessage(data.reply, 'ai', false, data.references || []);
-                speakText(data.reply);
+                if (data.voice_reply_token) {
+                    await speakAuthorizedFamilyVoice(data.voice_reply_token, data.reply);
+                } else {
+                    speakText(data.reply);
+                }
 
                 if (isTesting) {
                     if (data.completed) {
@@ -1305,6 +1316,26 @@
             if (el) el.remove();
         }
 
+        async function speakAuthorizedFamilyVoice(replyToken, fallbackText) {
+            try {
+                const response = await fetch('/voice/synthesize', {
+                    method: 'POST',
+                    headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ reply_token: replyToken })
+                });
+                if (!response.ok) throw new Error('家人声音暂时不可用');
+
+                const audioUrl = URL.createObjectURL(await response.blob());
+                const audio = new Audio(audioUrl);
+                audio.onended = () => URL.revokeObjectURL(audioUrl);
+                audio.onerror = () => URL.revokeObjectURL(audioUrl);
+                await audio.play();
+            } catch (error) {
+                // 没有远端语音服务时保留原有浏览器朗读，聊天不因此中断。
+                speakText(fallbackText);
+            }
+        }
+
         // 使用浏览器内置的语音合成功能朗读 AI 回复
         const interfaceLanguage = {{ current_language | tojson }};
 
@@ -1482,7 +1513,10 @@
             formData.append('language', speechMode);
 
             try {
-                const response = await fetch('/speech/recognize', {
+                const recognitionUrl = speechMode === 'mandarin'
+                    ? '/voice/recognize'
+                    : '/speech/recognize';
+                const response = await fetch(recognitionUrl, {
                     method: 'POST',
                     headers: csrfHeaders(),
                     body: formData
@@ -1503,7 +1537,7 @@
                     recordBtn.disabled = false;
                     resetRecordButton();
                     appendMessage(
-                        '腾讯云普通话暂时不可用，已切换到浏览器备用识别。请听到提示后，把刚才的话再说一次。',
+                        '项目普通话识别暂时不可用，已切换到浏览器备用识别。请听到提示后，把刚才的话再说一次。',
                         'ai'
                     );
                     await toggleBrowserRecognition();

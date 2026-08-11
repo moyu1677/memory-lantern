@@ -22,7 +22,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$python = Join-Path $projectRoot '.venv\Scripts\python.exe'
+$python = if ([string]::IsNullOrWhiteSpace($env:MEMORY_LANTERN_PYTHON)) {
+    Join-Path $projectRoot '.venv\Scripts\python.exe'
+} else {
+    $env:MEMORY_LANTERN_PYTHON
+}
 $deepseekKeyFile = Get-ChildItem -LiteralPath $projectRoot -Filter 'deepseek*.txt' -File |
     Select-Object -First 1 -ExpandProperty FullName
 $tunnel = $null
@@ -57,6 +61,43 @@ function Wait-ForTunnelHealth {
     throw "$ServiceName did not become ready within $TimeoutSeconds seconds. Last error: $lastError"
 }
 
+function Get-RemoteServiceKey {
+    param(
+        [ValidateRange(1, 65535)]
+        [int]$Port,
+        [ValidatePattern('^[A-Z0-9_]+$')]
+        [string]$KeyName
+    )
+
+    # Pass the query as base64 so the local Windows shell and SSH cannot strip
+    # the quoting needed by the remote awk/sed commands.  The key is returned
+    # only to this PowerShell process and is never written to disk or output.
+    $remoteScript = @'
+port='__PORT__'
+key_name='__KEY_NAME__'
+pid=$(ss -ltnp | awk -v port=":$port" '$4 ~ port { if (match($0, /pid=[0-9]+/)) { print substr($0, RSTART + 4, RLENGTH - 4); exit } }')
+test -n "$pid"
+dir=$(readlink -f "/proc/$pid/cwd")
+# The TTS server keeps its .env at the working directory, while the Whisper
+# module keeps it next to remote_asr/remote_whisper_server.py. Search only
+# these service-owned locations and return the key to this process in memory.
+for env_file in "$dir/.env" "$dir/remote_asr/.env"; do
+  if test -r "$env_file"; then
+    value=$(sed -n "s/^${key_name}=//p" "$env_file" | head -n 1)
+    if test -n "$value"; then
+      printf '%s' "$value"
+      exit 0
+    fi
+  fi
+done
+'@.Replace('__PORT__', "$Port").Replace('__KEY_NAME__', $KeyName)
+    $encoded = [Convert]::ToBase64String(
+        [System.Text.Encoding]::UTF8.GetBytes($remoteScript)
+    )
+    $remoteOutput = & ssh $SshHost "echo $encoded | base64 -d | bash"
+    return [string]($remoteOutput -join "`n")
+}
+
 if (-not (Test-Path -LiteralPath $python)) {
     throw 'Project virtual environment is missing. Install the project dependencies first.'
 }
@@ -83,13 +124,11 @@ if (Get-NetTCPConnection -State Listen -LocalPort $AsrPort -ErrorAction Silently
 Write-Host 'Opening a controlled SSH tunnel to teacher-server IndexTTS2...'
 
 # Read each remote service key from its own running directory; keep both only in memory.
-$remoteVoiceKeyCommand = 'pid=$(pgrep -fo "remote_indextts_server.py"); test -n "$pid"; dir=$(readlink -f "/proc/$pid/cwd"); sed -n "s/^VOICE_API_KEY=//p" "$dir/.env" | head -n 1'
-$remoteAsrKeyCommand = 'pid=$(pgrep -fo "remote_whisper_server.py"); test -n "$pid"; dir=$(readlink -f "/proc/$pid/cwd"); sed -n "s/^ASR_API_KEY=//p" "$dir/.env" | head -n 1'
-$remoteVoiceApiKey = (& ssh $SshHost $remoteVoiceKeyCommand).Trim()
+$remoteVoiceApiKey = (Get-RemoteServiceKey -Port 5000 -KeyName 'VOICE_API_KEY').Trim()
 if ([string]::IsNullOrWhiteSpace($remoteVoiceApiKey)) {
     throw 'Remote voice credential was unavailable. Confirm IndexTTS2 is running on teacher-server.'
 }
-$remoteAsrApiKey = (& ssh $SshHost $remoteAsrKeyCommand).Trim()
+$remoteAsrApiKey = (Get-RemoteServiceKey -Port 8000 -KeyName 'ASR_API_KEY').Trim()
 if ([string]::IsNullOrWhiteSpace($remoteAsrApiKey)) {
     throw 'Remote ASR credential was unavailable. Confirm Whisper ASR is running on teacher-server.'
 }
@@ -136,8 +175,8 @@ try {
         (Join-Path $projectRoot 'app.py')
     ) -NoNewWindow -PassThru
 
-    # The audio demo has no account gateway: health-check its public family page.
-    Wait-ForTunnelHealth 'Voice companion web server' "$demoUrl/family" $appProcess | Out-Null
+    # Health-check the real account gateway, not a standalone demo page.
+    Wait-ForTunnelHealth 'Memory Lantern web server' "$demoUrl/login" $appProcess | Out-Null
     if (-not $NoBrowser) {
         Start-Process $demoUrl
     }

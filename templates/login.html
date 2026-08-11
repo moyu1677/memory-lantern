@@ -21,11 +21,40 @@
             <span>👵 老人端</span>
             <span>👨‍👩‍👧 家属端</span>
             <span>🏡 社区端</span>
+            <span>🛡️ 管理员</span>
         </div>
 
         <form class="form-grid auth-motion-form" method="post" autocomplete="on" id="login-form">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ next_url }}">
+
+            <fieldset class="role-picker">
+                <legend>选择登录入口</legend>
+                <label class="role-choice role-choice-elder">
+                    <input type="radio" name="account_type" value="elder" required>
+                    <span class="role-choice-icon" aria-hidden="true">👵</span>
+                    <strong>老人端</strong>
+                    <small>语音陪伴、认知任务与个人历史</small>
+                </label>
+                <label class="role-choice role-choice-family">
+                    <input type="radio" name="account_type" value="family">
+                    <span class="role-choice-icon" aria-hidden="true">👨‍👩‍👧</span>
+                    <strong>家人端</strong>
+                    <small>绑定老人、声音库与关怀报告</small>
+                </label>
+                <label class="role-choice role-choice-community">
+                    <input type="radio" name="account_type" value="community">
+                    <span class="role-choice-icon" aria-hidden="true">🏡</span>
+                    <strong>社区端</strong>
+                    <small>授权照护、知识服务与协作留言</small>
+                </label>
+                <label class="role-choice">
+                    <input type="radio" name="account_type" value="admin">
+                    <span class="role-choice-icon" aria-hidden="true">🛡️</span>
+                    <strong>管理员端</strong>
+                    <small>用户、知识、报告验证与复核管理</small>
+                </label>
+            </fieldset>
 
             <div class="field auth-motion-field" data-field="username">
                 <label for="username">账号</label>

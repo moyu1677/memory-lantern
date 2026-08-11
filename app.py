@@ -308,6 +308,7 @@ def csrf_token():
 def is_api_request():
     return (
         request.path == "/chat"
+        or request.path.startswith("/voice/")
         or request.path.startswith("/test/")
         or request.path.startswith("/speech/")
         or request.path.startswith("/games/idiom/")
@@ -1018,17 +1019,13 @@ def home():
 
 
 @app.route("/family")
-def audio_demo_family():
-    """Public, consent-first family voice-library demonstration."""
+@family_required
+def family_portal():
+    """家属登录后的产品入口；声音库在其已绑定的老人范围内管理。"""
 
-    return render_template(
-        "audio_demo_family.html",
-        voices=database.list_audio_demo_voices(),
-        voice_service_configured=voice_service.configured,
-    )
+    return redirect(url_for("dashboard"))
 
 
-@app.route("/family/voices", methods=["POST"])
 def audio_demo_enroll_voice():
     label = unicodedata.normalize("NFKC", str(request.form.get("label") or "")).strip()[:40]
     sample = request.files.get("reference_audio")
@@ -1055,10 +1052,9 @@ def audio_demo_enroll_voice():
             flash(str(exc), "error")
         else:
             flash("声音已保存，并设为老人端当前声音。", "success")
-    return redirect(url_for("audio_demo_family"))
+    return redirect(url_for("family_portal"))
 
 
-@app.route("/family/voices/<int:voice_id>/emotion-references", methods=["POST"])
 def audio_demo_enroll_emotion_reference(voice_id):
     voice = database.get_audio_demo_voice(voice_id)
     style = str(request.form.get("emotion_style") or "").strip().lower()
@@ -1086,19 +1082,17 @@ def audio_demo_enroll_emotion_reference(voice_id):
             flash("情感样本暂时无法保存，请稍后重试。", "error")
         else:
             flash("情感样本已保存，系统会按回复内容克制地使用。", "success")
-    return redirect(url_for("audio_demo_family"))
+    return redirect(url_for("family_portal"))
 
 
-@app.route("/family/voices/<int:voice_id>/activate", methods=["POST"])
 def audio_demo_activate_voice(voice_id):
     flash(
         "已切换为老人端当前声音。" if database.activate_audio_demo_voice(voice_id) else "未找到这条声音。",
         "success" if database.get_audio_demo_voice(voice_id) else "error",
     )
-    return redirect(url_for("audio_demo_family"))
+    return redirect(url_for("family_portal"))
 
 
-@app.route("/family/voices/<int:voice_id>/delete", methods=["POST"])
 def audio_demo_delete_voice(voice_id):
     voice = database.get_audio_demo_voice(voice_id)
     if voice is None:
@@ -1111,7 +1105,7 @@ def audio_demo_delete_voice(voice_id):
         else:
             database.delete_audio_demo_voice(voice_id)
             flash("声音已从声音库和远端服务删除。", "success")
-    return redirect(url_for("audio_demo_family"))
+    return redirect(url_for("family_portal"))
 
 
 def _audio_response(audio: bytes, content_type: str, server_timing: str | None = None):
@@ -1123,7 +1117,6 @@ def _audio_response(audio: bytes, content_type: str, server_timing: str | None =
     return response
 
 
-@app.route("/audio/preview", methods=["POST"])
 def audio_demo_preview_voice():
     try:
         voice_id = int((request.get_json(silent=True) or {}).get("voice_id") or 0)
@@ -1143,12 +1136,27 @@ def audio_demo_preview_voice():
 
 
 @app.route("/elder")
-def audio_demo_elder():
-    voice = database.get_active_audio_demo_voice()
-    return render_template(
-        "audio_demo_elder.html",
-        voice_profile_label=voice["label"] if voice else None,
-    )
+@elder_required
+def elder_portal():
+    """老人登录后的产品入口。"""
+
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/community")
+@community_required
+def community_portal():
+    """社区账号的受权限保护入口。"""
+
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/admin")
+@admin_required
+def admin_portal():
+    """管理员账号的受权限保护入口。"""
+
+    return redirect(url_for("dashboard"))
 
 
 class AudioTranscriptionError(RuntimeError):
@@ -1200,7 +1208,6 @@ def transcribe_audio_file(audio_file, language):
     return transcript, selected_language
 
 
-@app.route("/audio/recognize", methods=["POST"])
 def audio_demo_recognize():
     started_at = time.perf_counter()
     audio_file = request.files.get("audio")
@@ -1215,7 +1222,6 @@ def audio_demo_recognize():
     return response
 
 
-@app.route("/audio/chat", methods=["POST"])
 def audio_demo_chat():
     payload = request.get_json(silent=True) or {}
     user_input = str(payload.get("message") or "").strip()
@@ -1240,7 +1246,6 @@ def audio_demo_chat():
     return response
 
 
-@app.route("/audio/synthesize", methods=["POST"])
 def audio_demo_synthesize():
     pending, error = consume_audio_demo_reply_token((request.get_json(silent=True) or {}).get("reply_token"))
     if error:
@@ -1282,6 +1287,9 @@ def login():
     if request.method == "POST":
         username = normalize_username(request.form.get("username"))
         password = str(request.form.get("password") or "")
+        selected_account_type = str(
+            request.form.get("account_type") or ""
+        ).strip()
         user = get_user_by_username(username)
 
         if (
@@ -1290,6 +1298,11 @@ def login():
             or not check_password_hash(user["password_hash"], password)
         ):
             flash("账号或密码不正确，请重新输入。", "error")
+        elif (
+            selected_account_type
+            and user["account_type"] != selected_account_type
+        ):
+            flash("请选择与该账号一致的登录入口。", "error")
         else:
             remember = request.form.get("remember") == "on"
             next_url = request.form.get("next")
@@ -1925,13 +1938,27 @@ def admin_reindex_rag_documents():
 @app.route("/assistant")
 @login_required
 def assistant_page():
-    if g.current_user["account_type"] in {"family", "community"}:
+    if g.current_user["account_type"] != "elder":
         abort(403)
     profile = get_active_voice_profile(g.current_user["id"])
     return render_template(
         "index.html",
         voice_profile_label=profile["label"] if profile else None,
     )
+
+
+@app.route("/voice/recognize", methods=["POST"])
+@elder_required
+def recognize_voice_companion():
+    """Transcribe an elder's companion recording through the configured ASR tunnel."""
+    audio_file = request.files.get("audio")
+    if audio_file is None or not audio_file.filename:
+        return jsonify({"error": "没有收到录音文件。"}), 400
+    try:
+        transcript, language = transcribe_audio_file(audio_file, "browser")
+    except AudioTranscriptionError as exc:
+        return jsonify({"error": str(exc)}), exc.status_code
+    return jsonify({"text": transcript, "language": language})
 
 
 @app.route("/voice/preview", methods=["POST"])
