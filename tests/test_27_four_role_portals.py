@@ -6,16 +6,16 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    ("account_type", "role", "path"),
+    ("account_type", "role", "path", "destination"),
     [
-        ("elder", "member", "/elder"),
-        ("family", "member", "/family"),
-        ("community", "member", "/community"),
-        ("admin", "admin", "/admin"),
+        ("elder", "member", "/elder", "/assistant"),
+        ("family", "member", "/family", "/dashboard"),
+        ("community", "member", "/community", "/dashboard"),
+        ("admin", "admin", "/admin", "/admin/users"),
     ],
 )
 def test_each_role_has_a_protected_portal(
-    client, login_as, user_factory, account_type, role, path
+    client, login_as, user_factory, account_type, role, path, destination
 ):
     user = user_factory(account_type=account_type, role=role)
     login_as(client, user["id"])
@@ -23,7 +23,7 @@ def test_each_role_has_a_protected_portal(
     response = client.get(path)
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith("/dashboard")
+    assert response.headers["Location"].endswith(destination)
 
 
 def test_login_page_lists_the_four_role_entries(client):

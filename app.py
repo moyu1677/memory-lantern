@@ -1140,7 +1140,7 @@ def audio_demo_preview_voice():
 def elder_portal():
     """老人登录后的产品入口。"""
 
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("assistant_page"))
 
 
 @app.route("/community")
@@ -1156,7 +1156,16 @@ def community_portal():
 def admin_portal():
     """管理员账号的受权限保护入口。"""
 
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("admin_users"))
+
+
+def account_home_endpoint(user):
+    """Return the first useful workspace for each authenticated account type."""
+    if user["account_type"] == "elder":
+        return "assistant_page"
+    if user["account_type"] == "admin":
+        return "admin_users"
+    return "dashboard"
 
 
 class AudioTranscriptionError(RuntimeError):
@@ -1316,7 +1325,7 @@ def login():
             flash(f"{user['display_name']}，欢迎回来。", "success")
             if is_safe_next_url(next_url):
                 return redirect(next_url)
-            return redirect(url_for("dashboard"))
+            return redirect(url_for(account_home_endpoint(user)))
 
     return render_template(
         "login.html",
