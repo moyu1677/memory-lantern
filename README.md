@@ -2,6 +2,8 @@
 
 面向老年人的多方言智慧陪伴与认知表现辅助评估平台。
 
+需要一份集中、可直接交付的项目介绍时，请阅读：[项目总览](项目总览.md)。
+
 项目融合生活化认知问题、普通话/粤语/潮汕话语音交互、语音朗读、认知表现记录、
 专属建议报告和健康知识库，为老人、家属与社区提供分角色的陪伴和信息协作能力。
 
@@ -53,7 +55,7 @@
 ### 1. 获取代码
 
 ```powershell
-git clone https://github.com/moyu1677/memory-lantern.git
+git clone -b agent/final-memory-lantern https://github.com/moyu1677/memory-lantern.git
 cd memory-lantern
 ```
 
@@ -109,10 +111,10 @@ http://127.0.0.1:5000
 
 ### 最终版完整启动（从 GitHub 获取）
 
-合并到 `main` 后，任何成员都应使用下面这组命令获取同一版本；不要从他人的电脑拷贝 `.env`、数据库或录音文件：
+当前最终版通过 `agent/final-memory-lantern` 分支交付。任何成员应使用下面这组命令获取同一版本；不要从他人的电脑拷贝 `.env`、数据库或录音文件：
 
 ```powershell
-git clone https://github.com/moyu1677/memory-lantern.git
+git clone -b agent/final-memory-lantern https://github.com/moyu1677/memory-lantern.git
 cd memory-lantern
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
