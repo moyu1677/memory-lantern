@@ -121,7 +121,7 @@ def test_api_rejects_unauthenticated_user_with_valid_csrf(client):
     assert response.status_code == 401
 
 
-def test_speech_endpoint_reports_missing_configuration(
+def test_speech_endpoint_reports_missing_whisper_configuration(
     app_module,
     client,
     user_factory,
@@ -130,17 +130,21 @@ def test_speech_endpoint_reports_missing_configuration(
 ):
     elder = user_factory(account_type="elder")
     token = login_as(client, elder["id"])
-    monkeypatch.setattr(app_module, "TENCENT_ASR_APP_ID", None)
-    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_ID", None)
-    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_KEY", None)
+    class UnavailableAsr:
+        @staticmethod
+        def transcribe(*_args, **_kwargs):
+            raise app_module.AsrServiceError("语音识别服务尚未连接。")
+
+    monkeypatch.setattr(app_module, "asr_service", UnavailableAsr())
 
     response = client.post(
         "/speech/recognize",
-        data={},
+        data={"audio": (BytesIO(b"audio"), "sample.webm")},
+        content_type="multipart/form-data",
         headers=api_headers(token),
     )
     assert response.status_code == 503
-    assert "尚未配置" in response.get_json()["error"]
+    assert "尚未连接" in response.get_json()["error"]
 
 
 def test_speech_endpoint_rejects_unknown_language_before_network(
@@ -152,10 +156,6 @@ def test_speech_endpoint_rejects_unknown_language_before_network(
 ):
     elder = user_factory(account_type="elder")
     token = login_as(client, elder["id"])
-    monkeypatch.setattr(app_module, "TENCENT_ASR_APP_ID", "test-app")
-    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_ID", "test-id")
-    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_KEY", "test-key")
-
     response = client.post(
         "/speech/recognize",
         data={
@@ -169,7 +169,7 @@ def test_speech_endpoint_rejects_unknown_language_before_network(
     assert "不支持" in response.get_json()["error"]
 
 
-def test_mandarin_speech_endpoint_recommends_browser_fallback_without_cloud_config(
+def test_mandarin_speech_endpoint_uses_whisper_without_browser_fallback(
     app_module,
     client,
     user_factory,
@@ -178,16 +178,22 @@ def test_mandarin_speech_endpoint_recommends_browser_fallback_without_cloud_conf
 ):
     elder = user_factory(account_type="elder")
     token = login_as(client, elder["id"])
-    monkeypatch.setattr(app_module, "TENCENT_ASR_APP_ID", None)
-    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_ID", None)
-    monkeypatch.setattr(app_module, "TENCENT_ASR_SECRET_KEY", None)
+    monkeypatch.setattr(
+        app_module,
+        "asr_service",
+        type("Whisper", (), {"transcribe": staticmethod(lambda *_args, **_kwargs: "您好")})(),
+    )
 
     response = client.post(
         "/speech/recognize",
-        data={"language": "mandarin"},
+        data={
+            "language": "mandarin",
+            "audio": (BytesIO(b"audio"), "sample.webm"),
+        },
+        content_type="multipart/form-data",
         headers=api_headers(token),
     )
 
-    assert response.status_code == 503
-    assert response.get_json()["fallback_recommended"] is True
-    assert response.get_json()["error_kind"] == "configuration"
+    assert response.status_code == 200
+    assert response.get_json()["text"] == "您好"
+    assert response.get_json()["language"] == "mandarin"

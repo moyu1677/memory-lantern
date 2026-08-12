@@ -34,3 +34,24 @@ def test_asr_client_sanitizes_filename_and_returns_text(monkeypatch):
 
     assert service.transcribe(BytesIO(b"audio"), "../../recording.WAV", "audio/wav") == "识别成功"
     assert calls[0][1]["files"]["audio"][0] == "recording.WAV"
+    assert calls[0][1]["data"] == {"language": "auto"}
+
+
+def test_asr_client_preserves_an_explicit_supported_language(monkeypatch):
+    class Response:
+        ok = True
+
+        @staticmethod
+        def json():
+            return {"text": "识别成功"}
+
+    calls = []
+    monkeypatch.setattr(
+        "asr_service.requests.post",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or Response(),
+    )
+    service = RemoteAsrService("http://127.0.0.1:18000", "test-key")
+
+    service.transcribe(BytesIO(b"audio"), "recording.webm", "audio/webm", language="zh")
+
+    assert calls[0][1]["data"] == {"language": "zh"}

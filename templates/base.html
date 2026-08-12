@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}忆路明灯{% endblock %}</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%A1%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
@@ -18,37 +19,48 @@
 
             <div class="site-header-actions">
             {% if current_user %}
-                <nav class="site-nav" aria-label="主要导航">
-                    <a href="{{ url_for('dashboard') }}">首页</a>
-                    <a href="{{ url_for('knowledge_center') }}">健康知识</a>
-                    <a href="{{ url_for('research_datasets') }}">测试数据</a>
-                    {% if current_user['account_type'] in ['elder', 'admin'] %}
+                <details class="site-menu">
+                    <summary aria-label="打开功能菜单">
+                        <span aria-hidden="true">☰</span><span>功能菜单</span>
+                    </summary>
+                    <nav class="site-nav" aria-label="主要导航">
+                    {% if current_user['account_type'] == 'elder' %}
+                        <a href="{{ url_for('elder_portal') }}">老人首页</a>
                         <a href="{{ url_for('assistant_page') }}">智慧陪伴</a>
+                        <a href="{{ url_for('elder_voice_library') }}">选择陪伴声音</a>
                         <a href="{{ url_for('idiom_game_page') }}">成语接龙</a>
                         <a href="{{ url_for('drawing_lab_page') }}">绘图实验</a>
                         <a href="{{ url_for('history') }}">历史结果</a>
-                    {% endif %}
-                    {% if current_user['account_type'] in ['family', 'community'] %}
+                        <a href="{{ url_for('knowledge_center') }}">健康知识</a>
+                    {% elif current_user['account_type'] == 'family' %}
+                        <a href="{{ url_for('dashboard') }}">家人首页</a>
+                        <a href="{{ url_for('family_briefs') }}">老人关怀报告</a>
+                        <a href="{{ url_for('voice_profiles_page') }}">家人声音授权</a>
                         <a href="{{ url_for('message_center') }}">
                             留言中心{% if unread_message_count %}（{{ unread_message_count }}）{% endif %}
                         </a>
-                    {% endif %}
-                    {% if current_user['account_type'] == 'family' %}
-                        <a href="{{ url_for('voice_profiles_page') }}">声音库</a>
-                        <a href="{{ url_for('family_briefs') }}">关怀报告</a>
-                    {% endif %}
-                    {% if current_user['role'] == 'admin' %}
+                        <a href="{{ url_for('knowledge_center') }}">健康知识</a>
+                    {% elif current_user['account_type'] == 'community' %}
+                        <a href="{{ url_for('dashboard') }}">社区首页</a>
+                        <a href="{{ url_for('message_center') }}">
+                            服务留言{% if unread_message_count %}（{{ unread_message_count }}）{% endif %}
+                        </a>
+                        <a href="{{ url_for('knowledge_center') }}">健康知识</a>
+                    {% elif current_user['role'] == 'admin' %}
                         <a href="{{ url_for('admin_users') }}">用户管理</a>
                         <a href="{{ url_for('admin_drawings') }}">绘图复核</a>
                         <a href="{{ url_for('admin_knowledge') }}">知识管理</a>
                         <a href="{{ url_for('admin_rag_documents') }}">RAG文档</a>
                         <a href="{{ url_for('admin_care_report_validation') }}">报告验证</a>
                     {% endif %}
-                    <form class="nav-form" action="{{ url_for('logout') }}" method="post">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                        <button class="nav-logout" type="submit">退出登录</button>
-                    </form>
-                </nav>
+                    </nav>
+                </details>
+                <form class="site-header-logout" action="{{ url_for('logout') }}" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" title="退出登录" aria-label="退出登录">
+                        <span aria-hidden="true">↪</span><span>退出登录</span>
+                    </button>
+                </form>
             {% endif %}
                 <form class="language-switcher" action="{{ url_for('set_language', language='zh' if current_language == 'en' else 'en') }}" method="post">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">

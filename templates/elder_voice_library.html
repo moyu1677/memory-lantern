@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}选择陪伴声音 · 忆路明灯{% endblock %}
+
+{% block head %}
+<style>
+    .elder-voice-page { max-width: 980px; margin: 0 auto; }
+    .elder-voice-hero { padding: clamp(28px, 5vw, 48px); border-radius: 28px; color: #fff; background: radial-gradient(circle at 86% 16%, rgba(247, 205, 105, .34), transparent 23%), linear-gradient(128deg, #145e57, #2b8072); box-shadow: 0 20px 44px rgba(21, 91, 83, .16); }
+    .elder-voice-hero span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; color: #eefbf6; background: rgba(255,255,255,.14); font-size: .9rem; font-weight: 800; }
+    .elder-voice-hero h1 { margin: 16px 0 10px; color: #fff; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.16; }
+    .elder-voice-hero p { max-width: 660px; margin: 0; color: rgba(255,255,255,.92); font-size: 1.12rem; line-height: 1.7; }
+    .elder-voice-panel { margin-top: 22px; padding: clamp(24px, 4vw, 38px); border: 1px solid #d5e5df; border-radius: 26px; background: #fff; box-shadow: 0 13px 33px rgba(37, 69, 62, .08); }
+    .elder-voice-panel h2 { margin: 0; color: var(--primary-dark); font-size: clamp(1.4rem, 2.8vw, 1.85rem); }
+    .elder-voice-intro { margin: 10px 0 24px; color: var(--text-soft); line-height: 1.7; }
+    .elder-voice-list { display: grid; gap: 15px; }
+    .elder-voice-card { padding: clamp(20px, 3vw, 28px); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; border: 2px solid #cfe2da; border-radius: 20px; background: #fbfdfc; }
+    .elder-voice-card.is-selected { border-color: #56a98f; background: #eef9f4; box-shadow: inset 0 0 0 1px rgba(48, 137, 109, .08); }
+    .elder-voice-card h3 { margin: 0; color: var(--primary-dark); font-size: 1.25rem; }
+    .elder-voice-card p { margin: 9px 0 0; color: var(--text-soft); line-height: 1.6; }
+    .elder-voice-card small { display: block; margin-top: 7px; color: #4d7168; line-height: 1.5; }
+    .elder-voice-current { display: inline-flex; margin-top: 14px; padding: 7px 12px; color: #0c604d; font-weight: 850; border-radius: 999px; background: #ccefdc; }
+    .elder-voice-card form { margin: 0; }
+    .elder-voice-card button { min-width: 154px; min-height: 56px; padding: 13px 19px; font-size: 1.05rem; }
+    .elder-voice-card button[disabled] { color: #4e766c; cursor: default; background: #dcebe5; box-shadow: none; }
+    .elder-voice-empty { padding: 32px; color: var(--text-soft); text-align: center; line-height: 1.7; border: 1px dashed #aacdc0; border-radius: 18px; background: #f7fbf9; }
+    .elder-voice-help { margin-top: 22px; padding: 17px 20px; color: #365e55; line-height: 1.65; border-left: 4px solid #74b89f; border-radius: 0 14px 14px 0; background: #eff8f4; }
+    .elder-voice-warning { margin-top: 22px; padding: 17px 20px; color: #7c342d; line-height: 1.65; border-radius: 14px; background: #fff2f0; }
+    @media (max-width: 620px) { .elder-voice-card { grid-template-columns: 1fr; } .elder-voice-card button { width: 100%; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="elder-voice-page" aria-label="老人端陪伴声音选择">
+    <section class="elder-voice-hero">
+        <span>🎙 我的陪伴声音</span>
+        <h1>选择您想听到的家人声音</h1>
+        <p>这些声音都已经由家人本人确认授权。选好后，陪伴聊天会用这条声音来回应您；您之后也可以随时换一条。</p>
+    </section>
+
+    <section class="elder-voice-panel" aria-labelledby="elder-voice-list-title">
+        <h2 id="elder-voice-list-title">可选择的声音</h2>
+        <p class="elder-voice-intro">请慢慢看，点“使用这条声音”即可。选择只会影响您的陪伴聊天，不会改变家人账号里的内容。</p>
+
+        {% if not voice_service_configured %}
+            <p class="elder-voice-warning">陪伴声音服务正在连接中。您仍可以选择声音；服务恢复后会自动使用您的选择。</p>
+        {% endif %}
+
+        {% if profiles %}
+            <div class="elder-voice-list">
+                {% for profile in profiles %}
+                <article class="elder-voice-card {% if profile['is_active'] %}is-selected{% endif %}">
+                    <div>
+                        <h3>{{ profile['label'] }}</h3>
+                        <p>由 {{ profile['creator_name'] }} 授权提供</p>
+                        <small>已授权于 {{ profile['consented_at'] | local_datetime }}</small>
+                        {% if profile['is_active'] %}<span class="elder-voice-current">✓ 当前正在使用</span>{% endif %}
+                    </div>
+                    {% if profile['is_active'] %}
+                        <button type="button" disabled>正在使用</button>
+                    {% else %}
+                        <form method="post">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="profile_id" value="{{ profile['id'] }}">
+                            <button type="submit">使用这条声音</button>
+                        </form>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="elder-voice-empty">目前还没有可选择的家人声音。请让已绑定的家人在“声音授权”里完成录音或上传、内容核对和授权确认。</div>
+        {% endif %}
+
+        <p class="elder-voice-help">提示：陪伴助手会保留家人的音色，但会根据每次回答的内容自动保持自然、克制的语气；不会把参考录音里的情绪机械复制到每一句回答。</p>
+    </section>
+</main>
+{% endblock %}

@@ -6,55 +6,59 @@
 {% block content %}
 <section class="auth-split-card" aria-labelledby="login-title">
     <div class="auth-form-panel">
-        <a class="auth-inline-brand" href="{{ url_for('login') }}" aria-label="忆路明灯登录页">
-            <span aria-hidden="true">💡</span>
-            <strong>忆路明灯</strong>
-        </a>
+        <div class="auth-topbar">
+            <a class="auth-inline-brand" href="{{ url_for('login') }}" aria-label="忆路明灯登录页">
+                <span aria-hidden="true">💡</span>
+                <strong>忆路明灯</strong>
+            </a>
+            <form class="auth-language-toggle" method="post"
+                action="{{ url_for('set_language', language='en' if current_language != 'en' else 'zh') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+                <button type="submit" aria-label="{{ '切换到英文' if current_language != 'en' else '切换到中文' }}">
+                    <span aria-hidden="true">🌐</span>
+                    {{ 'English' if current_language != 'en' else '中文' }}
+                </button>
+            </form>
+        </div>
 
         <div class="auth-welcome-copy">
-            <span class="auth-kicker">智慧陪伴 · 温暖守护</span>
-            <h1 id="login-title">欢迎回来</h1>
-            <p>请输入账号和密码，进入您的智慧陪伴空间。</p>
+            <span class="auth-kicker">选择服务端 · 进入专属服务</span>
+            {% if selected_portal %}
+            <h1 id="login-title">{{ selected_portal.label }}登录</h1>
+            <p>请使用注册在<strong>{{ selected_portal.label }}</strong>的账号登录。</p>
+            {% else %}
+            <h1 id="login-title">请选择您的服务端</h1>
+            <p>不同服务端有不同的账号和功能。先选择您要进入的端，再继续登录或注册。</p>
+            {% endif %}
         </div>
 
-        <div class="auth-role-hints" aria-label="支持的账户类型">
-            <span>👵 老人端</span>
-            <span>👨‍👩‍👧 家属端</span>
-            <span>🏡 社区端</span>
-            <span>🛡️ 管理员</span>
-        </div>
+        <nav class="auth-portal-picker" aria-label="选择服务端">
+            {% for portal in login_portals %}
+            <a class="auth-portal-choice auth-portal-choice-{{ portal.account_type }}{% if selected_portal and selected_portal.account_type == portal.account_type %} is-selected{% endif %}"
+                href="{{ url_for('login', account_type=portal.account_type, next=next_url or None) }}">
+                <span class="auth-portal-icon" aria-hidden="true">{{ portal.icon }}</span>
+                <span class="auth-portal-copy">
+                    <strong>{{ portal.label }}</strong>
+                    <small>{{ portal.description }}</small>
+                </span>
+                <span class="auth-portal-arrow" aria-hidden="true">→</span>
+            </a>
+            {% endfor %}
+        </nav>
 
-        <form class="form-grid auth-motion-form" method="post" autocomplete="on" id="login-form">
+        {% if selected_portal %}
+        <p class="auth-auto-routing-note"><strong>{{ selected_portal.label }}</strong>账号登录。账号类型在注册时确定；请选择与您账号相同的服务端。</p>
+        {% else %}
+        <p class="auth-select-prompt">点击一个服务端后，再使用相应账号登录。每个账号只可在注册所属服务端登录。</p>
+        {% endif %}
+
+        {% if selected_portal %}
+        <form class="form-grid auth-motion-form" method="post" autocomplete="on" id="login-form"
+            action="{{ url_for('login', account_type=selected_portal.account_type, next=next_url or None) }}">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="next" value="{{ next_url }}">
-
-            <fieldset class="role-picker">
-                <legend>选择登录入口</legend>
-                <label class="role-choice role-choice-elder">
-                    <input type="radio" name="account_type" value="elder" required>
-                    <span class="role-choice-icon" aria-hidden="true">👵</span>
-                    <strong>老人端</strong>
-                    <small>语音陪伴、认知任务与个人历史</small>
-                </label>
-                <label class="role-choice role-choice-family">
-                    <input type="radio" name="account_type" value="family">
-                    <span class="role-choice-icon" aria-hidden="true">👨‍👩‍👧</span>
-                    <strong>家人端</strong>
-                    <small>绑定老人、声音库与关怀报告</small>
-                </label>
-                <label class="role-choice role-choice-community">
-                    <input type="radio" name="account_type" value="community">
-                    <span class="role-choice-icon" aria-hidden="true">🏡</span>
-                    <strong>社区端</strong>
-                    <small>授权照护、知识服务与协作留言</small>
-                </label>
-                <label class="role-choice">
-                    <input type="radio" name="account_type" value="admin">
-                    <span class="role-choice-icon" aria-hidden="true">🛡️</span>
-                    <strong>管理员端</strong>
-                    <small>用户、知识、报告验证与复核管理</small>
-                </label>
-            </fieldset>
+            <input type="hidden" name="account_type" value="{{ selected_portal.account_type }}">
 
             <div class="field auth-motion-field" data-field="username">
                 <label for="username">账号</label>
@@ -109,10 +113,17 @@
                 <span class="auth-submit-loading" aria-hidden="true"></span>
             </button>
         </form>
+        {% endif %}
 
         <p class="auth-footer auth-split-footer">
-            还没有账号？
-            <a class="text-link" href="{{ url_for('register') }}">立即注册</a>
+            {% if selected_portal and selected_portal.registration_available %}
+                还没有{{ selected_portal.label }}账号？
+                <a class="text-link" href="{{ url_for('register', account_type=selected_portal.account_type) }}">注册{{ selected_portal.label }}账号</a>
+            {% elif selected_portal %}
+                管理员账号由平台创建；请使用已有账号登录。
+            {% else %}
+                点击上方服务端后，即可创建该端账号。
+            {% endif %}
         </p>
     </div>
 
@@ -186,6 +197,36 @@
             </div>
         </div>
     </aside>
+
+    <section class="auth-capability-band" aria-label="登录后可使用的核心能力">
+        <div class="auth-capability-band-heading">
+            <span>核心能力</span>
+            <h2>从一段声音，到一份被妥善守护的关怀</h2>
+        </div>
+        <div class="auth-capability-grid">
+            <article class="auth-capability-card">
+                <span class="auth-capability-icon" aria-hidden="true">🎙️</span>
+                <div>
+                    <h3>语音陪伴与智能转写</h3>
+                    <p>普通话录音会转成文字，老人可继续语音或文字交流。</p>
+                </div>
+            </article>
+            <article class="auth-capability-card auth-capability-card-gold">
+                <span class="auth-capability-icon" aria-hidden="true">👨‍👩‍👧</span>
+                <div>
+                    <h3>已授权家人声音复刻</h3>
+                    <p>家人完成授权后，陪伴回复可使用该家人的声音播放。</p>
+                </div>
+            </article>
+            <article class="auth-capability-card auth-capability-card-blue">
+                <span class="auth-capability-icon" aria-hidden="true">💬</span>
+                <div>
+                    <h3>聊天关怀提取</h3>
+                    <p>仅在老人确认后整理可分享的关怀提示；不展示完整聊天或原始录音。</p>
+                </div>
+            </article>
+        </div>
+    </section>
 </section>
 
 <script>
@@ -194,6 +235,8 @@
     const password = document.getElementById("password");
     const passwordToggle = document.getElementById("password-toggle");
     const submitButton = document.getElementById("login-submit");
+
+    if (!form || !password || !passwordToggle || !submitButton) return;
 
     document.querySelectorAll(".auth-motion-field input").forEach((input) => {
         const field = input.closest(".auth-motion-field");

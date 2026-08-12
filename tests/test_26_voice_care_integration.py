@@ -20,9 +20,10 @@ def test_voice_chat_is_elder_only_and_returns_a_server_issued_reply_token(
     family = user_factory(account_type="family")
     _bind(app_module, family, elder)
     with app_module.app.app_context():
-        app_module.database.create_voice_profile(
+        profile_id = app_module.database.create_voice_profile(
             elder["id"], family["id"], "女儿小安", "voice-test-001"
         )
+        app_module.database.activate_voice_profile(elder["id"], profile_id)
     monkeypatch.setattr(
         app_module,
         "get_ai_reply",
@@ -52,14 +53,15 @@ def test_voice_synthesis_rejects_forged_text_and_allows_the_issued_reply_once(
     family = user_factory(account_type="family")
     _bind(app_module, family, elder)
     with app_module.app.app_context():
-        app_module.database.create_voice_profile(
+        profile_id = app_module.database.create_voice_profile(
             elder["id"], family["id"], "儿子小明", "voice-test-002"
         )
+        app_module.database.activate_voice_profile(elder["id"], profile_id)
     calls = []
     monkeypatch.setattr(
         app_module,
         "voice_service",
-        SimpleNamespace(synthesize=lambda voice_id, text: (calls.append((voice_id, text)) or (b"RIFF", "audio/wav"))),
+        SimpleNamespace(synthesize=lambda voice_id, text, **kwargs: (calls.append((voice_id, text, kwargs)) or (b"RIFF", "audio/wav"))),
     )
     token = login_as(client, elder["id"])
     reply_token = app_module.issue_voice_reply_token(elder["id"], "慢慢来，不着急。")
@@ -67,9 +69,49 @@ def test_voice_synthesis_rejects_forged_text_and_allows_the_issued_reply_once(
     forged = client.post("/voice/synthesize", json={"text": "替我说任意内容"}, headers=api_headers(token))
     repeated = client.post("/voice/synthesize", json={"reply_token": reply_token}, headers=api_headers(token))
     assert first.status_code == 200 and first.mimetype == "audio/wav"
-    assert calls == [("voice-test-002", "慢慢来，不着急。")]
+    assert calls == [(
+        "voice-test-002", "慢慢来，不着急。",
+        {
+            "emotion_text": "请用清晰、平和、带一点关切的语气朗读；不要焦急，不制造紧张。",
+            "emotion_strength": 0.20,
+        },
+    )]
     assert forged.status_code == 400
     assert repeated.status_code == 400
+
+
+def test_selected_family_voice_is_used_for_assessment_prompts_and_feedback(
+    app_module, client, login_as, user_factory
+):
+    elder = user_factory(account_type="elder")
+    family = user_factory(account_type="family")
+    _bind(app_module, family, elder)
+    with app_module.app.app_context():
+        profile_id = app_module.database.create_voice_profile(
+            elder["id"], family["id"], "儿子小明", "voice-test-assessment"
+        )
+        assert app_module.database.activate_voice_profile(elder["id"], profile_id)
+
+    csrf = login_as(client, elder["id"])
+    started = client.post(
+        "/test/start", json={"input_language": "mandarin"}, headers=api_headers(csrf)
+    )
+    assert started.status_code == 200
+    assert started.get_json()["voice_reply_token"]
+
+    restored = client.get("/test/status")
+    assert restored.status_code == 200
+    assert restored.get_json()["voice_reply_token"]
+
+    answered = client.post(
+        "/test/answer", json={"message": "不知道"}, headers=api_headers(csrf)
+    )
+    assert answered.status_code == 200
+    assert answered.get_json()["voice_reply_token"]
+
+    replay = client.post("/voice/test-narration", headers=api_headers(csrf))
+    assert replay.status_code == 200
+    assert replay.get_json()["voice_reply_token"]
 
 
 def test_voice_recognition_uses_the_authenticated_companion_route(
@@ -91,7 +133,7 @@ def test_voice_recognition_uses_the_authenticated_companion_route(
         headers=api_headers(elder_token),
     )
     assert response.status_code == 200
-    assert response.get_json() == {"text": "识别成功", "language": "browser"}
+    assert response.get_json() == {"text": "识别成功", "language": "auto"}
 
     family_token = login_as(client, family["id"])
     assert client.post(
@@ -100,6 +142,59 @@ def test_voice_recognition_uses_the_authenticated_companion_route(
         content_type="multipart/form-data",
         headers=api_headers(family_token),
     ).status_code == 403
+
+
+def test_english_voice_chat_keeps_the_selected_family_voice(
+    app_module, client, login_as, user_factory, monkeypatch
+):
+    elder = user_factory(account_type="elder")
+    family = user_factory(account_type="family")
+    _bind(app_module, family, elder)
+    with app_module.app.app_context():
+        profile_id = app_module.database.create_voice_profile(
+            elder["id"], family["id"], "Family voice", "voice-english-001"
+        )
+        app_module.database.activate_voice_profile(elder["id"], profile_id)
+
+    captured = {}
+    calls = []
+    monkeypatch.setattr(
+        app_module,
+        "get_ai_reply",
+        lambda message, system_prompt, **_kwargs: (
+            captured.update(message=message, system_prompt=system_prompt)
+            or "I am glad to talk with you today."
+        ),
+    )
+    monkeypatch.setattr(
+        app_module,
+        "voice_service",
+        SimpleNamespace(
+            synthesize=lambda voice_id, text, **kwargs: (
+                calls.append((voice_id, text, kwargs)) or (b"RIFF", "audio/wav")
+            )
+        ),
+    )
+
+    csrf = login_as(client, elder["id"])
+    chat = client.post(
+        "/voice/chat",
+        json={"message": "Hello, how are you?", "language": "english"},
+        headers=api_headers(csrf),
+    )
+    assert chat.status_code == 200
+    payload = chat.get_json()
+    assert payload["reply"] == "I am glad to talk with you today."
+    assert "easy-to-understand English" in captured["system_prompt"]
+
+    spoken = client.post(
+        "/voice/synthesize",
+        json={"reply_token": payload["voice_reply_token"]},
+        headers=api_headers(csrf),
+    )
+    assert spoken.status_code == 200
+    assert calls[0][0] == "voice-english-001"
+    assert calls[0][1] == "I am glad to talk with you today."
 
 
 def test_bound_family_can_generate_a_privacy_bounded_report(
@@ -115,7 +210,7 @@ def test_bound_family_can_generate_a_privacy_bounded_report(
     monkeypatch.setattr(
         app_module,
         "generate_care_report",
-        lambda *_: {
+        lambda *_args, **_kwargs: {
             "status": "signals_present",
             "summary": "近期可多安排一次轻松联系。",
             "signals": [{

@@ -90,8 +90,11 @@ def test_public_language_switch_persists_on_login(client, csrf_for_anonymous):
 
     assert response.status_code == 200
     assert b'lang="en"' in response.data
-    assert b"Welcome back" in response.data
+    assert b"Choose your portal" in response.data
     assert b"Memory Lantern" in response.data
+    assert b"Voice companionship and smart transcription" in response.data
+    assert b"Authorised family voice cloning" in response.data
+    assert b"Conversation-based care insights" in response.data
     assert "中文" in response.get_data(as_text=True)
     assert_no_unexpected_chinese(response.get_data(as_text=True))
 
@@ -100,13 +103,23 @@ def test_public_language_switch_persists_on_login(client, csrf_for_anonymous):
     assert b"Create an account" in second_response.data
     assert_no_unexpected_chinese(second_response.get_data(as_text=True))
 
+    selected_portal_response = client.get("/login?account_type=family")
+    assert b"Family" in selected_portal_response.data
+    assert b"Use the account registered for" in selected_portal_response.data
+    assert_no_unexpected_chinese(selected_portal_response.get_data(as_text=True))
+
+    selected_registration_response = client.get("/register?account_type=family")
+    assert b"Registering for:" in selected_registration_response.data
+    assert b"Change portal" in selected_registration_response.data
+    assert_no_unexpected_chinese(selected_registration_response.get_data(as_text=True))
+
     chinese_response = client.post(
         "/language/zh",
         data={"_csrf_token": token, "next": "/login"},
         follow_redirects=True,
     )
     assert b'lang="zh-CN"' in chinese_response.data
-    assert "欢迎回来" in chinese_response.get_data(as_text=True)
+    assert "请选择您的服务端" in chinese_response.get_data(as_text=True)
 
 
 def test_dashboard_history_and_report_render_in_english(
@@ -139,7 +152,8 @@ def test_dashboard_history_and_report_render_in_english(
     assert_no_unexpected_chinese(report)
 
     assistant = client.get("/assistant").get_data(as_text=True)
-    assert "English (browser)" in assistant
+    assert "Whisper V3" in assistant
+    assert "SpeechRecognition" not in assistant
     assert "Start cognitive assessment" in assistant
     assert_no_unexpected_chinese(assistant)
 
@@ -193,6 +207,30 @@ def test_english_assessment_api_returns_english_question(
     assert payload["testing"] is True
     assert "Task 1 of 11" in payload["reply"]
     assert payload["question"]["domain"] == "Immediate memory"
+    assert not any(
+        "\u4e00" <= character <= "\u9fff"
+        for character in payload["question"]["prompt"]
+    )
+
+
+def test_selecting_english_voice_input_uses_the_english_question_bank(
+    client,
+    user_factory,
+    login_as,
+):
+    elder = user_factory(account_type="elder")
+    token = login_as(client, elder["id"])
+
+    response = client.post(
+        "/test/start",
+        json={"input_language": "english"},
+        headers=api_headers(token),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["assessment_language"] == "en"
+    assert "Task 1 of 11" in payload["reply"]
     assert not any(
         "\u4e00" <= character <= "\u9fff"
         for character in payload["question"]["prompt"]

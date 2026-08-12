@@ -1,10 +1,286 @@
 {% extends "base.html" %}
+
 {% block title %}家人声音授权 · 忆路明灯{% endblock %}
+
+{% block head %}
+<style>
+    .voice-page { max-width: 1120px; margin: 0 auto; }
+    .voice-hero { padding: clamp(26px, 4.2vw, 42px); color: #fff; border-radius: 26px; background: radial-gradient(circle at 86% 18%, rgba(238, 190, 77, .28), transparent 24%), linear-gradient(125deg, #155c56, #287f71); box-shadow: 0 18px 40px rgba(22, 88, 80, .18); }
+    .voice-eyebrow { margin: 0 0 9px; color: #dff4eb; font-size: .88rem; font-weight: 850; letter-spacing: .11em; }
+    .voice-hero h1 { margin: 0; color: #fff; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.15; }
+    .voice-hero p { max-width: 750px; margin: 14px 0 0; color: rgba(255,255,255,.92); font-size: 1.08rem; line-height: 1.72; }
+    .voice-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+    .voice-step { min-height: 106px; padding: 18px 20px; border: 1px solid #d8e7e2; border-radius: 18px; background: #fff; box-shadow: 0 8px 20px rgba(37, 69, 62, .06); }
+    .voice-step span { display: block; margin-bottom: 7px; color: var(--primary); font-size: .82rem; font-weight: 900; letter-spacing: .06em; }
+    .voice-step strong { display: block; color: var(--primary-dark); font-size: 1.02rem; }
+    .voice-step small { display: block; margin-top: 5px; color: var(--text-soft); line-height: 1.48; }
+    .voice-layout { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr); gap: 20px; align-items: start; }
+    .voice-panel, .voice-library { padding: clamp(22px, 3.2vw, 32px); border: 1px solid #d9e6e2; border-radius: 24px; background: #fff; box-shadow: 0 12px 30px rgba(37, 69, 62, .07); }
+    .voice-panel h2, .voice-library h2 { margin: 0; color: var(--primary-dark); font-size: clamp(1.35rem, 2vw, 1.65rem); }
+    .voice-copy { margin: 10px 0 24px; color: var(--text-soft); line-height: 1.68; }
+    .voice-field { display: grid; gap: 12px; margin-top: 22px; color: var(--text); font-weight: 800; }
+    .voice-field input, .voice-field select, .voice-review textarea { width: 100%; min-height: 58px; padding: 16px 18px; color: var(--text); font: inherit; line-height: 1.5; border: 2px solid #c5d7d1; border-radius: 14px; background: #fff; }
+    .voice-field input:focus, .voice-field select:focus, .voice-review textarea:focus { border-color: var(--primary); }
+    .voice-source-title { display: block; margin: 23px 0 10px; color: var(--text); font-weight: 800; }
+    .voice-file-input { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .voice-source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .voice-source { min-height: 126px; padding: 19px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; color: var(--primary-dark); font: inherit; text-align: left; border: 2px solid #a9cfc3; border-radius: 18px; background: #f1faf6; cursor: pointer; box-shadow: none; transition: transform .18s ease, background-color .18s ease, border-color .18s ease; }
+    .voice-source:hover { transform: translateY(-2px); border-color: var(--primary); background: #e5f5ee; }
+    .voice-source strong { font-size: 1.05rem; }
+    .voice-source small { color: var(--text-soft); font-size: .88rem; line-height: 1.45; }
+    .voice-source.recording { color: #fff; border-color: #ae493c; background: #ae493c; }
+    .voice-source.recording small { color: #fff4f2; }
+    .voice-source:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .voice-status { min-height: 28px; margin: 15px 0 0; color: var(--primary-dark); font-weight: 750; line-height: 1.55; }
+    .voice-analyse { width: 100%; min-height: 50px; margin-top: 14px; color: var(--primary-dark); font: inherit; font-weight: 800; border: 2px solid var(--primary); border-radius: 14px; background: #fff; box-shadow: none; }
+    .voice-analyse:hover { color: #fff; background: var(--primary); }
+    .voice-analyse:disabled { opacity: .52; cursor: not-allowed; }
+    .voice-review { margin-top: 20px; padding: 22px; border: 1px solid #b8dacc; border-radius: 18px; background: #eff8f4; }
+    .voice-review strong { color: var(--primary-dark); }
+    .voice-review p { margin: 6px 0 12px; color: var(--text-soft); font-size: .92rem; line-height: 1.56; }
+    .voice-review textarea { min-height: 96px; resize: vertical; background: #fff; }
+    .voice-check, .voice-consent { display: flex; gap: 11px; align-items: flex-start; color: var(--text-soft); line-height: 1.6; }
+    .voice-check { margin-top: 13px; font-size: .93rem; }
+    .voice-consent { margin-top: 22px; }
+    .voice-check input, .voice-consent input { width: 20px; height: 20px; flex: none; margin: 3px 0 0; accent-color: var(--primary); }
+    .voice-submit { width: 100%; min-height: 54px; margin-top: 20px; font-size: 1.04rem; }
+    .voice-submit:disabled { opacity: .55; cursor: not-allowed; }
+    .voice-privacy { margin: 20px 0 0; padding: 15px 17px; color: #385d55; font-size: .91rem; line-height: 1.62; border-left: 4px solid #75b49f; border-radius: 0 12px 12px 0; background: #f2f8f5; }
+    .voice-connection { margin-top: 18px; padding: 14px 16px; color: #7a2424; line-height: 1.58; border: 1px solid #efc2bd; border-radius: 14px; background: #fff2f0; }
+    .voice-library-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .voice-library-head span { flex: none; padding: 6px 10px; color: #0f5c4d; font-size: .78rem; font-weight: 850; border-radius: 999px; background: #dff2e9; }
+    .voice-library-copy { margin: 9px 0 18px; color: var(--text-soft); line-height: 1.62; }
+    .voice-elder-group { margin-top: 16px; padding-top: 18px; border-top: 1px solid #dfeae6; }
+    .voice-elder-group:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+    .voice-elder-group h3 { margin: 0 0 10px; color: var(--primary-dark); font-size: 1.03rem; }
+    .voice-profile { padding: 16px; border: 1px solid #dbe8e3; border-radius: 17px; background: #fbfdfc; }
+    .voice-profile + .voice-profile { margin-top: 10px; }
+    .voice-profile.is-active { border-color: #83c3ae; background: #eff9f4; }
+    .voice-profile-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .voice-profile-name { color: var(--primary-dark); font-size: 1.03rem; }
+    .voice-active { flex: none; padding: 5px 9px; color: #0c5849; font-size: .76rem; font-weight: 850; border-radius: 999px; background: #cdebdc; }
+    .voice-profile-meta { display: grid; gap: 4px; margin: 10px 0 0; color: var(--text-soft); font-size: .84rem; line-height: 1.45; }
+    .voice-profile-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 15px; }
+    .voice-profile-actions form { margin: 0; }
+    .voice-profile-actions button { min-height: 40px; padding: 8px 12px; font-size: .87rem; }
+    .voice-secondary { color: var(--primary-dark); border: 1px solid #9fc8ba; background: #fff; box-shadow: none; }
+    .voice-danger { background: #9f3c36; }
+    .voice-empty { margin: 0; color: var(--text-soft); line-height: 1.65; }
+    @media (max-width: 800px) { .voice-steps, .voice-layout { grid-template-columns: 1fr; } .voice-step { min-height: 0; } }
+    @media (max-width: 460px) { .voice-source-grid { grid-template-columns: 1fr; } .voice-hero, .voice-panel, .voice-library { border-radius: 20px; } }
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="page-heading"><h1>家人端 · 声音库</h1><p>为已绑定老人登记一条经本人授权的远程声音。原始音频不存入本应用，可随时撤回。</p></section>
-{% for elder in elders %}
-<section class="panel"><h2>{{ elder['display_name'] }}的授权声音</h2>
-  {% if voice_service_configured %}<form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="elder_id" value="{{ elder['id'] }}"><label>家人称呼 <input name="label" maxlength="40" required></label><label>声音样本 <input name="reference_audio" type="file" accept="audio/*" required></label><label><input name="voice_consent" type="checkbox" value="on" required> 我确认声音所有者已明确授权。</label><button type="submit">登记声音</button></form>{% else %}<p>远程语音服务尚未连接。</p>{% endif %}
-  {% for profile in profiles_by_elder[elder['id']] %}<article class="voice-profile-card"><strong>{{ profile['label'] }}</strong>{% if profile['is_active'] %} · 当前声音{% endif %}<p>登记人：{{ profile['creator_name'] }} · {{ profile['created_at']|local_datetime }}</p>{% if not profile['is_active'] %}<form method="post"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="elder_id" value="{{ elder['id'] }}"><input type="hidden" name="profile_id" value="{{ profile['id'] }}"><input type="hidden" name="action" value="activate"><button>设为当前声音</button></form>{% endif %}<form method="post" action="{{ url_for('revoke_voice_profile', profile_id=profile['id']) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="button-danger">撤回并删除</button></form></article>{% else %}<p>尚未登记声音。</p>{% endfor %}
-</section>{% else %}<section class="panel"><p>请先绑定一位老人账户，再登记声音。</p></section>{% endfor %}
+<main class="voice-page" aria-label="家人端声音库">
+    <section class="voice-hero">
+        <p class="voice-eyebrow">家人端 · 声音库</p>
+        <h1>把家人的声音交给陪伴助手</h1>
+        <p>为已绑定老人登记一段本人明确授权的声音。登记后，只有该老人登录自己的账号并使用语音陪聊时，陪伴助手才会使用这条声音回应。</p>
+    </section>
+
+    <section class="voice-steps" aria-label="声音登记流程">
+        <article class="voice-step"><span>01 · 提供声音</span><strong>录音或上传文件</strong><small>建议在安静环境中连续说话 10–30 秒。</small></article>
+        <article class="voice-step"><span>02 · 核对内容</span><strong>识别并确认转写</strong><small>先看一遍系统听到的话，再授予声音使用权限。</small></article>
+        <article class="voice-step"><span>03 · 绑定使用</span><strong>由老人账号使用</strong><small>家人只管理授权；老人端不会从这里直接打开。</small></article>
+    </section>
+
+    <div class="voice-layout">
+        <section class="voice-panel" aria-labelledby="voice-enrollment-title">
+            <h2 id="voice-enrollment-title">添加授权声音</h2>
+            <p class="voice-copy">先选择需要陪伴的老人，再选择录音或音频文件。完成转写核对和授权确认后，声音才会登记到该老人的专属声音库。</p>
+
+            {% if elders and voice_service_configured and asr_service_configured %}
+                <form id="voice-enrollment-form" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="enroll">
+
+                    <label class="voice-field" for="voice-elder-id"><span>这段声音将陪伴谁</span>
+                        <select id="voice-elder-id" name="elder_id" required>
+                            {% for elder in elders %}<option value="{{ elder['id'] }}">{{ elder['display_name'] }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <label class="voice-field" for="voice-label"><span>声音名称</span>
+                        <input id="voice-label" name="label" maxlength="40" placeholder="例如：女儿小兰" required>
+                    </label>
+
+                    <span class="voice-source-title">选择声音来源</span>
+                    <input class="voice-file-input" id="voice-reference-audio" name="reference_audio" type="file" accept="audio/wav,audio/mpeg,audio/mp4,audio/ogg,audio/webm,.wav,.mp3,.m4a,.ogg,.webm">
+                    <div class="voice-source-grid">
+                        <button class="voice-source" type="button" id="voice-record-button"><strong>🎤 直接录音</strong><small>点击开始；再次点击结束录制</small></button>
+                        <label class="voice-source" for="voice-reference-audio"><strong>📁 上传音频文件</strong><small>支持 WAV、MP3、M4A、WEBM、OGG</small></label>
+                    </div>
+                    <p class="voice-status" id="voice-sample-status" role="status">请选择“直接录音”或“上传音频文件”。</p>
+                    <button class="voice-analyse" type="button" id="voice-analyse-button" hidden>重新识别这段声音</button>
+
+                    <section class="voice-review" id="voice-review" hidden aria-live="polite">
+                        <strong>请核对系统听到的话</strong>
+                        <p>转写只在当前页面用于核对，不会保存到本应用。若内容明显不对，请重新录音或更换文件。</p>
+                        <textarea id="voice-transcript" aria-label="转写内容" placeholder="识别结果会显示在这里"></textarea>
+                        <label class="voice-check"><input id="voice-review-confirmed" type="checkbox" disabled><span>我已核对以上转写内容，并确认该声音样本来自本人。</span></label>
+                    </section>
+
+                    <label class="voice-consent"><input id="voice-consent" name="voice_consent" type="checkbox" value="on" required><span>我确认声音所有者已明确同意：该声音仅用于所选老人的陪伴语音合成；我可以随时撤回授权。</span></label>
+                    <button class="voice-submit" type="submit" id="voice-submit-button" disabled>确认授权并加入声音库</button>
+                </form>
+            {% elif not elders %}
+                <p class="voice-empty">请先在家人端首页绑定老人账户，再为老人添加家人声音。</p>
+            {% else %}
+                <p class="voice-connection">语音识别或声音服务尚未连接。请使用项目根目录的 <code>run_voice_demo.ps1</code> 启动完整服务后刷新此页。</p>
+            {% endif %}
+
+            <p class="voice-privacy">原始音频只会在授权时发送至受控远程语音服务，本应用不保存原始录音。撤回授权会同时删除远端参考音频与本地受控编号。</p>
+        </section>
+
+        <section class="voice-library" aria-labelledby="voice-library-title">
+            <div class="voice-library-head"><h2 id="voice-library-title">已授权声音库</h2><span>可随时撤回</span></div>
+            <p class="voice-library-copy">声音登记后由老人本人在自己的账号中选择使用哪一条。家人可以试听、继续添加或撤回自己提供的声音，但不会替老人切换声音。</p>
+            {% set state = namespace(has_profiles=false) %}
+            {% for elder in elders %}
+                <section class="voice-elder-group" aria-labelledby="elder-{{ elder['id'] }}-voices">
+                    <h3 id="elder-{{ elder['id'] }}-voices">{{ elder['display_name'] }} 的声音</h3>
+                    {% for profile in profiles_by_elder.get(elder['id'], []) %}
+                        {% set state.has_profiles = true %}
+                        <article class="voice-profile {% if profile['is_active'] %}is-active{% endif %}">
+                            <div class="voice-profile-top"><strong class="voice-profile-name">{{ profile['label'] }}</strong>{% if profile['is_active'] %}<span class="voice-active">老人当前选择</span>{% else %}<span class="voice-active">已在声音库</span>{% endif %}</div>
+                            <div class="voice-profile-meta"><span>授权时间：{{ profile['created_at']|local_datetime }}</span>{% if profile['last_used_at'] %}<span>最后使用：{{ profile['last_used_at']|local_datetime }}</span>{% endif %}</div>
+                            <div class="voice-profile-actions">
+                                <button type="button" class="voice-secondary" data-preview-profile="{{ profile['id'] }}">试听</button>
+                                <form method="post" action="{{ url_for('revoke_voice_profile', profile_id=profile['id']) }}" onsubmit="return confirm('确定撤回这条声音授权吗？');"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="voice-danger" type="submit">撤回授权</button></form>
+                            </div>
+                        </article>
+                    {% else %}<p class="voice-empty">尚未登记声音。</p>{% endfor %}
+                </section>
+            {% endfor %}
+            {% if not state.has_profiles and elders %}<p class="voice-empty">声音库还是空的。添加第一段已授权声音后，它会显示在这里。</p>{% endif %}
+        </section>
+    </div>
+</main>
+
+<script>
+(() => {
+    const form = document.getElementById('voice-enrollment-form');
+    if (!form) return;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const sampleInput = document.getElementById('voice-reference-audio');
+    const elderSelect = document.getElementById('voice-elder-id');
+    const recordButton = document.getElementById('voice-record-button');
+    const analyseButton = document.getElementById('voice-analyse-button');
+    const submitButton = document.getElementById('voice-submit-button');
+    const consent = document.getElementById('voice-consent');
+    const review = document.getElementById('voice-review');
+    const transcript = document.getElementById('voice-transcript');
+    const reviewConfirmed = document.getElementById('voice-review-confirmed');
+    const status = document.getElementById('voice-sample-status');
+    // Keep the capture path identical to the proven standalone audio demo:
+    // browser MediaRecorder produces WebM, then onstop immediately triggers
+    // one automatic remote transcription.
+    let recorder = null, stream = null, chunks = [];
+    let recognitionInProgress = false;
+
+    const selectedFile = () => sampleInput?.files?.[0];
+    const showStatus = message => { if (status) status.textContent = message; };
+    function updateSubmit() { submitButton.disabled = !selectedFile() || !reviewConfirmed.checked || !consent.checked; }
+    function resetReview() { review.hidden = true; transcript.value = ''; reviewConfirmed.checked = false; reviewConfirmed.disabled = true; updateSubmit(); }
+    function sampleReady(message) {
+        resetReview();
+        analyseButton.disabled = !selectedFile();
+        analyseButton.hidden = true;
+        showStatus(message);
+    }
+    async function recognizePreparedSample(file) {
+        if (!file || recognitionInProgress) return;
+        recognitionInProgress = true;
+        resetReview();
+        analyseButton.hidden = true;
+        showStatus('正在自动识别这段声音，请稍候…');
+        try {
+            const data = new FormData();
+            // Keep the recording request exactly aligned with the proven
+            // standalone family-audio page.  ``elder_id`` is the only extra
+            // field required by the integrated portal's binding check.
+            data.set('audio', file, file.name || 'family-voice.webm');
+            data.set('language', 'auto');
+            data.set('elder_id', elderSelect.value);
+            const response = await fetch('{{ url_for("transcribe_family_voice_sample") }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrfToken },
+                body: data,
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.error || '语音识别暂时不可用，请稍后重试。');
+            const recognisedText = String(payload.text || '').trim();
+            if (!recognisedText) throw new Error('没有识别到清晰的说话内容，请重新录音后再试。');
+            transcript.value = recognisedText;
+            review.hidden = false;
+            reviewConfirmed.disabled = false;
+            reviewConfirmed.checked = false;
+            review.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            showStatus('识别完成。请核对下方转写内容；确认无误后即可继续授权。');
+        } catch (error) {
+            analyseButton.hidden = false;
+            analyseButton.disabled = !selectedFile();
+            showStatus(error.message || '自动识别失败，请重新录音或点击“重新识别这段声音”。');
+        } finally {
+            recognitionInProgress = false;
+            updateSubmit();
+        }
+    }
+    function prepareSample() {
+        const file = selectedFile();
+        if (!file) {
+            sampleReady('请选择“直接录音”或“上传音频文件”。');
+            return;
+        }
+        recognizePreparedSample(file);
+    }
+
+    sampleInput.addEventListener('change', prepareSample);
+    consent.addEventListener('change', updateSubmit);
+    reviewConfirmed.addEventListener('change', updateSubmit);
+    transcript.addEventListener('input', () => { if (!review.hidden) { reviewConfirmed.checked = false; updateSubmit(); } });
+    form.addEventListener('submit', event => {
+        if (!selectedFile() || !reviewConfirmed.checked || !consent.checked) { event.preventDefault(); showStatus('请先完成声音识别与内容核对，并确认授权。'); }
+    });
+
+    recordButton.addEventListener('click', async () => {
+        if (recorder?.state === 'recording') { recorder.stop(); return; }
+        if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { showStatus('当前浏览器无法直接录音，请选择“上传音频文件”。'); return; }
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const type = ['audio/webm;codecs=opus', 'audio/webm'].find(item => MediaRecorder.isTypeSupported(item));
+            recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+            chunks = [];
+            recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+            recorder.onstart = () => { recordButton.classList.add('recording'); recordButton.innerHTML = '<strong>■ 结束录音</strong><small>请继续自然地说一段话</small>'; showStatus('正在录音，请自然说 10–30 秒。'); };
+            recorder.onstop = () => {
+                stream?.getTracks().forEach(track => track.stop()); stream = null;
+                const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+                const transfer = new DataTransfer(); transfer.items.add(new File([blob], 'family-voice.webm', { type: blob.type })); sampleInput.files = transfer.files;
+                recordButton.classList.remove('recording'); recordButton.innerHTML = '<strong>🎤 重新录音</strong><small>点击开始；再次点击结束录制</small>';
+                prepareSample();
+            };
+            recorder.start();
+        } catch (_) { showStatus('无法使用麦克风，请允许浏览器麦克风权限，或选择“上传音频文件”。'); }
+    });
+
+    analyseButton.addEventListener('click', () => recognizePreparedSample(selectedFile()));
+
+    document.querySelectorAll('[data-preview-profile]').forEach(button => button.addEventListener('click', async () => {
+        button.disabled = true;
+        const original = button.textContent;
+        button.textContent = '生成试听中…';
+        try {
+            const response = await fetch('{{ url_for("preview_family_voice") }}', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ profile_id: Number(button.dataset.previewProfile) }) });
+            const payload = response.headers.get('content-type')?.includes('application/json') ? await response.json() : null;
+            if (!response.ok) throw new Error(payload?.error || '试听失败，请稍后重试。');
+            const url = URL.createObjectURL(await response.blob());
+            const audio = new Audio(url);
+            audio.onended = audio.onerror = () => URL.revokeObjectURL(url);
+            await audio.play();
+        } catch (error) { showStatus(error.message || '试听失败，请稍后重试。'); }
+        finally { button.textContent = original; button.disabled = false; }
+    }));
+})();
+</script>
 {% endblock %}

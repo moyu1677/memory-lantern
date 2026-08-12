@@ -1614,16 +1614,12 @@ def get_assessment(assessment_id):
 def create_voice_profile(elder_id, created_by, label, remote_voice_id):
     connection = get_db()
     now = utc_now()
-    connection.execute(
-        "UPDATE voice_profiles SET is_active = 0 WHERE elder_id = ?",
-        (elder_id,),
-    )
     cursor = connection.execute(
         """
         INSERT INTO voice_profiles (
             elder_id, created_by, label, remote_voice_id,
             consented_at, is_active, created_at
-        ) VALUES (?, ?, ?, ?, ?, 1, ?)
+        ) VALUES (?, ?, ?, ?, ?, 0, ?)
         """,
         (elder_id, created_by, label, remote_voice_id, now, now),
     )
@@ -1636,6 +1632,9 @@ def list_voice_profiles(elder_id, created_by=None):
         SELECT p.*, creator.display_name AS creator_name
         FROM voice_profiles AS p
         JOIN users AS creator ON creator.id = p.created_by
+        JOIN care_bindings AS binding
+          ON binding.elder_id = p.elder_id
+         AND binding.caregiver_id = p.created_by
         WHERE p.elder_id = ?
     """
     parameters = [elder_id]
@@ -1649,9 +1648,13 @@ def list_voice_profiles(elder_id, created_by=None):
 def get_active_voice_profile(elder_id):
     return get_db().execute(
         """
-        SELECT * FROM voice_profiles
-        WHERE elder_id = ? AND is_active = 1
-        ORDER BY created_at DESC
+        SELECT p.*
+        FROM voice_profiles AS p
+        JOIN care_bindings AS binding
+          ON binding.elder_id = p.elder_id
+         AND binding.caregiver_id = p.created_by
+        WHERE p.elder_id = ? AND p.is_active = 1
+        ORDER BY p.created_at DESC
         LIMIT 1
         """,
         (elder_id,),
@@ -1667,7 +1670,14 @@ def get_voice_profile(profile_id):
 def activate_voice_profile(elder_id, profile_id):
     connection = get_db()
     found = connection.execute(
-        "SELECT 1 FROM voice_profiles WHERE id = ? AND elder_id = ?",
+        """
+        SELECT 1
+        FROM voice_profiles AS p
+        JOIN care_bindings AS binding
+          ON binding.elder_id = p.elder_id
+         AND binding.caregiver_id = p.created_by
+        WHERE p.id = ? AND p.elder_id = ?
+        """,
         (profile_id, elder_id),
     ).fetchone()
     if found is None:

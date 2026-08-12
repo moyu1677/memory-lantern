@@ -47,6 +47,14 @@ MAX_AUDIO_BYTES = 20 * 1024 * 1024
 ALLOWED_AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".webm", ".ogg"}
 app = FastAPI(docs_url=None, redoc_url=None, title="Memory Lantern Whisper ASR")
 FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg")
+# Whisper has a 30-second feature window.  The browser deliberately permits a
+# longer turn for older adults, so longer recordings must use Whisper's
+# sequential long-form path rather than silently truncating the latter half.
+WHISPER_SHORTFORM_SAMPLES = 30 * 16_000
+VERBATIM_TRANSCRIPTION_PROMPT = (
+    "Verbatim transcription. Keep fillers, repetitions, and self-corrections: "
+    "嗯、呃、啊、uh、um. Do not summarize, correct, or add words."
+)
 
 
 def expected_api_key() -> str:
@@ -146,20 +154,57 @@ def transcribe_with_whisper(audio_path: Path, language: str) -> str:
     samples, _ = librosa.load(str(audio_path), sr=16000, mono=True)
     if samples.size == 0:
         return ""
-    features = processor(samples, sampling_rate=16000, return_tensors="pt").input_features
+    is_longform = samples.size > WHISPER_SHORTFORM_SAMPLES
+    # ``truncation=False`` is essential for the long path: the previous
+    # one-shot extraction retained only a short Whisper window.  Conversely,
+    # a single short recording must be padded to Whisper's fixed 3000 mel
+    # frames; padding it merely to its own length causes model.generate to
+    # reject recordings such as a brief English sentence.
+    feature_kwargs = {
+        "sampling_rate": 16_000,
+        "return_tensors": "pt",
+        "truncation": False,
+        "return_attention_mask": True,
+    }
+    if is_longform:
+        feature_kwargs["padding"] = "longest"
+    else:
+        feature_kwargs.update(
+            {"padding": "max_length", "max_length": WHISPER_SHORTFORM_SAMPLES}
+        )
+    features = processor(samples, **feature_kwargs)
     language_map = {"zh": "chinese", "en": "english"}
     selected_language = language_map.get(str(language or "").lower())
-    # Whisper large-v3 reserves positions for the decoder's language/task
-    # prompt.  Keep a small margin below its 448-token absolute limit so a
-    # forced Chinese/English prompt cannot make otherwise valid audio fail.
-    generation_kwargs = {"max_new_tokens": 440}
+    generation_kwargs = {
+        "task": "transcribe",
+        "prompt_ids": processor.get_prompt_ids(
+            VERBATIM_TRANSCRIPTION_PROMPT, return_tensors="pt"
+        ).to(device),
+    }
     if selected_language:
-        generation_kwargs["forced_decoder_ids"] = processor.get_decoder_prompt_ids(
-            language=selected_language, task="transcribe"
+        generation_kwargs["language"] = selected_language
+
+    if is_longform:
+        # Transformers 4.52 implements Whisper's sequential timestamp-based
+        # long-form algorithm.  It advances through the entire recording and
+        # carries prior context across natural pauses instead of dropping the
+        # second half of a 30–60 second elderly user's reply.
+        generation_kwargs.update(
+            {
+                "return_timestamps": True,
+                "condition_on_prev_tokens": True,
+                "prompt_condition_type": "all-segments",
+                "temperature": (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+                "compression_ratio_threshold": 1.35,
+                "logprob_threshold": -1.0,
+                "no_speech_threshold": 0.6,
+                "attention_mask": features.attention_mask.to(device),
+            }
         )
     with torch.inference_mode():
         generated_ids = model.generate(
-            features.to(device=device, dtype=model.dtype), **generation_kwargs
+            input_features=features.input_features.to(device=device, dtype=model.dtype),
+            **generation_kwargs,
         )
     return processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
 

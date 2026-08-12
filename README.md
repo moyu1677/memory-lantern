@@ -2,6 +2,8 @@
 
 面向老年人的多方言智慧陪伴与认知表现辅助评估平台。
 
+需要一份集中、可直接交付的项目介绍时，请阅读：[项目总览](项目总览.md)。
+
 项目融合生活化认知问题、普通话/粤语/潮汕话语音交互、语音朗读、认知表现记录、
 专属建议报告和健康知识库，为老人、家属与社区提供分角色的陪伴和信息协作能力。
 
@@ -10,22 +12,22 @@
 
 ## 当前版本概览
 
-更新时间：**2026-08-07**
+更新时间：**2026-08-13**
 
 | 模块 | 当前状态 | 说明 |
 | --- | --- | --- |
 | 账号与权限 | ✅ 已完成 | 老人端、家属端、社区端和管理员权限隔离 |
 | 适老化界面 | ✅ 已完成 | 大字、大按钮、响应式首页、登录页和聊天页 |
-| 智慧陪伴 | ✅ 已完成 | 受保护的语音陪伴、需求提取、家人授权声音朗读与浏览器兜底 |
-| 多方言输入 | ✅ 已接通 | 普通话远程 ASR；粤语、潮汕话腾讯云识别；浏览器识别兜底 |
+| 智慧陪伴 | ✅ 已完成 | 受保护的语音陪伴、需求提取、家人授权声音朗读；声音表现由服务端随回复内容处理，不向使用者提供额外选择 |
+| 多语言输入 | ✅ 已接通 | 普通话、粤语、潮汕话与英文录音统一由远程 Whisper large-v3 转写；浏览器只负责录音 |
 | 认知表现测试 | ✅ 原型完成 | 62道题目变体，按7个维度随机生成10题，满分14分 |
 | 语音表现统计 | ✅ 第一阶段完成 | 记录首次发声、停顿、说话时长等匿名化派生指标 |
 | 历史与报告 | ✅ 已完成 | 历史结果、能力维度、专属训练建议和知识推荐 |
 | 家属/社区协作 | ✅ 原型完成 | 绑定老人、查看授权结果、家属与社区留言 |
 | 健康知识库 | ✅ 原型完成 | 文章审核、RAG文档、来源展示和角色可见范围 |
-| 成语接龙 | ✅ 已完成 | 29,536条本地成语，支持打字及三种语音输入 |
+| 成语接龙 | ✅ 已完成 | 29,536条本地成语，支持打字及 Whisper V3 录音转写 |
 | 绘图辅助评分 | 🧪 研究链路完成 | 轨迹采集、双人复核、仲裁、匿名导出与可拒判模型接口 |
-| 自动化测试 | ✅ 通过 | 当前完整测试：`102 passed` |
+| 自动化测试 | ✅ 通过 | 当前完整测试：`120 passed` |
 | 正式部署 | ⏳ 待完成 | 当前仍是 Flask 本地开发模式 |
 
 ## 主要技术
@@ -34,7 +36,7 @@
 - **前端：** Jinja2、HTML、CSS、JavaScript
 - **数据库：** SQLite
 - **大模型：** DeepSeek API
-- **语音：** 受控远程 Whisper ASR、IndexTTS2、腾讯云方言 ASR、Web Speech API
+- **语音：** 受控远程 Whisper large-v3 ASR、IndexTTS2；浏览器仅采集麦克风录音
 - **音频处理：** FFmpeg
 - **知识库：** SQLite 内容库、中文关键词与字符片段混合检索
 - **测试：** pytest
@@ -53,7 +55,7 @@
 ### 1. 获取代码
 
 ```powershell
-git clone https://github.com/moyu1677/memory-lantern.git
+git clone -b agent/final-memory-lantern https://github.com/moyu1677/memory-lantern.git
 cd memory-lantern
 ```
 
@@ -66,47 +68,79 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### 3. 配置本地环境变量
+### 3. 准备本地私有配置与数据库
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-编辑 `.env`，填写各自的 DeepSeek 与腾讯云密钥。真实密钥只保存在本机，禁止提交到
-GitHub、群聊或截图中。
+编辑 `.env`，填写本机应用配置。真实密钥只保存在本机，禁止提交到 GitHub、群聊或截图中。
+
+首次克隆没有本地数据库时，先执行一次下列命令创建空白 SQLite 数据库和基础知识数据：
+
+```powershell
+.\.venv\Scripts\python.exe -c "import app"
+```
+
+如果需要保留既有账号、密码、绑定关系与声音库，请将原有数据库保存在 Git 仓库外，并在启动时
+显式指定它；不要复制数据库到 GitHub：
+
+```powershell
+.\run_voice_demo.ps1 -DatabasePath "D:\private-data\memory_lantern.db"
+```
+
+自动启动器会在启动前检查 DeepSeek 密钥。首次在新电脑运行时，请在当前 PowerShell 窗口设置它：
+
+```powershell
+$env:DEEPSEEK_API_KEY = "你的 DeepSeek 密钥"
+```
 
 ### 4. 启动
 
+日常演示必须使用项目启动器；它会在后台自动建立受控的 ASR 与 IndexTTS2 连接，完成健康检查后再打开浏览器。不要单独运行 `python app.py`，否则页面能够打开但语音识别和家人声音服务不会自动接入。
+
 ```powershell
-python app.py
+.\run_voice_demo.ps1
 ```
 
-浏览器访问：
+启动器默认打开：
 
 ```text
 http://127.0.0.1:5000
 ```
 
-### 团队成员统一启动（从 GitHub 获取）
+### 最终版完整启动（从 GitHub 获取）
 
-合并到 `main` 后，任何成员都应使用下面这组命令获取同一版本；不要从他人的电脑拷贝 `.env`、数据库或录音文件：
+当前最终版通过 `agent/final-memory-lantern` 分支交付。任何成员应使用下面这组命令获取同一版本；不要从他人的电脑拷贝 `.env`、数据库或录音文件：
 
 ```powershell
-git clone https://github.com/moyu1677/memory-lantern.git
+git clone -b agent/final-memory-lantern https://github.com/moyu1677/memory-lantern.git
 cd memory-lantern
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\python.exe app.py
 ```
 
-启动后访问 `http://127.0.0.1:5000`。每位成员只需在自己的 `.env` 填写自己的 `FLASK_SECRET_KEY`；需要联网对话时再填写自己的 `DEEPSEEK_API_KEY`。
+完整体验（语音转写、家人声音、聊天与认知测试）统一使用自动启动器：
 
-如果 5000 端口已经被其他本地程序占用，在启动前执行 `$env:FLASK_PORT = '5055'`，然后访问 `http://127.0.0.1:5055`。
+```powershell
+.\run_voice_demo.ps1
+```
 
-打开根地址后先选择对应的登录入口：老人、家人、社区或管理员。登录成功后只会进入该账号被授权的工作台：老人端使用 `/assistant`，家人端在 `/voice-profiles` 管理已绑定老人的声音库并在 `/family-briefs` 查看关怀报告，社区与管理员端分别进入各自的协作和管理功能。
+它会自动建立受控的 ASR 与 IndexTTS2 SSH 隧道、在内存中取得运行凭证并健康检查后再打开网页；使用者不需要手动输入远程服务密钥，也不会把密钥写入 GitHub。该方式要求本机 SSH 配置中已有 `teacher-server`，并且该远程主机已运行 IndexTTS2（5000）与 `remote_asr` Whisper large-v3（8000）。若 5000 端口被占用，可使用 `.\run_voice_demo.ps1 -AppPort 5055`，然后访问 `http://127.0.0.1:5055`。
 
-录音识别与授权音色合成依赖受控的远程 ASR 和 IndexTTS2 服务，因此运行该链路的成员还需按 `.env.example` 配置 `ASR_URL`、`ASR_API_KEY`、`INDEXTTS2_URL`、`INDEXTTS2_API_KEY`。这些值由语音服务负责人单独、安全地发放，绝不能提交到 GitHub；服务未配置时，老人端仍会保留原有浏览器朗读和文字聊天，不会跳转到另一套页面。
+仅做页面开发或离线测试时，才需要 `Copy-Item .env.example .env` 后运行 `.\.venv\Scripts\python.exe app.py`；这类启动方式不会自动连接语音服务。
+
+打开根地址后使用统一登录页：先选择服务端，再使用该端账号登录或注册。各端的最终使用顺序如下：
+
+1. 老人端：登录后进入首页，打开“智慧陪伴”；选择普通话、英文或自动识别，录音转写后可先检查并修改文字，再发送。点击“开始认知测试”可进入语音或文字答题；选择 English 时题目、回复和朗读均使用英文。
+2. 家人端：先绑定老人；在“声音库”选择已绑定老人，录制或上传 10–30 秒本人已授权的声音，核对转写后完成授权。家人只能管理自己授权的声音，不能替老人直接切换。
+3. 老人端声音选择：在“选择陪伴声音”中只会看到已绑定家人授权的声音；选择后，聊天回复与认知题朗读均使用同一条家人声音，中文和英文不会换成另一条声音。
+4. 家人关怀报告：完成若干轮自然聊天后，家人可在“家庭关怀报告”手动生成汇总。报告只展示经过授权的稳定关怀信号，不展示原始聊天和录音。
+5. 社区端与管理员端：分别用于已授权协作、知识内容与账号管理；不会与家人端或老人端共享未授权内容。
+
+Whisper 会尽量保留停顿词、重复和自我修正；聊天助手会将其视为自然表达，不会在回复中复述或评价它们。短录音会补齐模型所需输入，超过 30 秒的录音采用连续长音频转写，不截掉后半段。
+
+录音识别与授权音色合成依赖受控的远程 ASR 和 IndexTTS2 服务。日常演示请使用上方自动启动器；只有部署到没有既有 SSH 配置的机器时，才需要由语音服务负责人安全地配置 `ASR_URL`、`ASR_API_KEY`、`INDEXTTS2_URL`、`INDEXTTS2_API_KEY`。这些值绝不能提交到 GitHub。
 
 更完整的安装、密钥、麦克风和常见问题说明见：
 [项目配置与运行说明](docs/项目配置与运行说明.md)。
@@ -116,7 +150,7 @@ Copy-Item .env.example .env
 提交代码前至少运行：
 
 ```powershell
-python -m pytest -c tests/pytest.ini -q
+python -m pytest -q tests
 ```
 
 公开普通话数据集测试需要单独下载数据，不随 Git 仓库分发。具体见：
@@ -130,7 +164,9 @@ memory-lantern/
 ├─ database.py            # SQLite 表结构与数据访问
 ├─ questions.py           # 随机认知题库与评分配置
 ├─ reports.py             # 专属报告生成规则
-├─ tencent_asr.py         # 腾讯云多方言语音识别
+├─ asr_service.py         # 受控远程 Whisper large-v3 客户端
+├─ remote_asr/            # 部署在 GPU 主机上的 Whisper large-v3 服务
+├─ run_voice_demo.ps1     # 完整模式启动器：SSH 隧道、健康检查与本机站点
 ├─ speech_analysis.py     # 描述性语音行为特征
 ├─ drawing_scoring.py    # 绘图特征、可解释基线模型与低置信度拒判
 ├─ rag.py                 # 本地知识检索与RAG流程
@@ -215,12 +251,11 @@ Pull Request 描述可以使用下面的格式：
 
 ## 当前优先任务
 
-1. **P0：** 语音识别文字先确认、修改或重录，再进入测试评分；
-2. **P0：** 腾讯云语音识别1.0与2.0的真实样本对比；
-3. **P1：** 建立已授权的普通话、粤语和潮汕话测试集；
+1. **P0：** 正式部署前配置 HTTPS、访问审计、数据库备份与恢复演练；
+2. **P0：** 在目标老人使用环境复测 Whisper large-v3 的普通话、粤语、潮汕话和英文识别；
+3. **P1：** 建立已授权的公开测试样本与持续识别质量记录；
 4. **P1：** 持久化尚未完成的测试进度；
-5. **P1：** 完成正式部署方案、数据库迁移和备份；
-6. **P2：** 知识库检索评估、来源审计与内容版本管理。
+5. **P1：** 知识库检索评估、来源审计与内容版本管理。
 
 完整进度、已知问题和下一步实施要求见：
 [项目任务交接与下一步计划](docs/项目任务交接与下一步计划.md)。
