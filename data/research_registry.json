@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-08",
+  "last_updated": "2026-08-13",
   "datasets": [
     {
       "id": "mandarin-common-voice",
@@ -10,11 +10,11 @@
       "license": "按下载页面所示许可使用",
       "planned_count": 100,
       "preparation_summary": "tests/datasets/mandarin_commonvoice/generated/dataset_summary.json",
-      "result_summary": "tests/results/mandarin_dataset_summary.json",
-      "environment": "腾讯云 16k_zh_en（主）· 浏览器 Web Speech API（备用）",
+      "result_summary": null,
+      "environment": "远程 Whisper large-v3 · 浏览器仅录音/上传",
       "status": "prepared",
-      "status_label": "已准备，待复测",
-      "note": "100条音频已经完成固定抽样和格式统一；自动化数据集测试评价腾讯云主链路。浏览器备用链路需另行人工或虚拟音频设备测试，两种结果不混合统计。"
+      "status_label": "已准备，待 Whisper V3 复测",
+      "note": "100条音频已经完成固定抽样和格式统一。旧腾讯云与浏览器识别结果不再作为当前产品的识别结果展示；后续仅统计远程 Whisper large-v3 链路。"
     },
     {
       "id": "cantonese-fleurs",
@@ -25,18 +25,18 @@
       "license": "CC BY 4.0",
       "planned_count": 50,
       "preparation_summary": "tests/datasets/cantonese_fleurs/generated/dataset_summary.json",
-      "result_summary": "tests/results/cantonese_fleurs_summary.json",
-      "environment": "yue_hant_hk test split · 16 kHz 单声道 · 腾讯云实时ASR",
-      "status": "completed",
-      "status_label": "已完成",
-      "note": "固定50条公开数据集样本；结果仅代表朗读语音转写性能，不代表老年人自然对话或认知筛查效度。"
+      "result_summary": null,
+      "environment": "yue_hant_hk test split · 16 kHz 单声道 · 远程 Whisper large-v3",
+      "status": "prepared",
+      "status_label": "已准备，待 Whisper V3 复测",
+      "note": "固定50条公开数据集样本；后续结果仅代表远程 Whisper large-v3 的朗读语音转写性能，不代表老年人自然对话或认知筛查效度。"
     }
   ],
   "verification_records": [
     {
       "category": "技术验证执行",
       "organization": "忆路明灯项目组",
-      "scope": "数据准备、接口调用、CER与端到端时延统计",
+      "scope": "数据准备、Whisper large-v3 接口调用、CER与端到端时延统计",
       "evidence": "固定随机种子、测试脚本、CSV结果和可视化汇总",
       "status": "进行中"
     },

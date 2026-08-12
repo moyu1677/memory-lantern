@@ -45,10 +45,11 @@
             <div class="game-language-row">
                 <label for="game-language">语音输入</label>
                 <select id="game-language">
-                    <option value="mandarin">普通话（腾讯云优先，浏览器备用）</option>
-                    <option value="browser">普通话（仅浏览器）</option>
-                    <option value="cantonese">粤语（腾讯云）</option>
-                    <option value="chaoshan">潮汕话（腾讯云）</option>
+                    <option value="auto" selected>自动识别（中文 / English · Whisper V3）</option>
+                    <option value="mandarin">普通话（Whisper V3）</option>
+                    <option value="cantonese">粤语（Whisper V3）</option>
+                    <option value="chaoshan">潮汕话（Whisper V3）</option>
+                    <option value="english">English（Whisper V3）</option>
                 </select>
             </div>
 
@@ -257,44 +258,14 @@
     });
 
     voiceButton.addEventListener("click", async () => {
-        if (languageSelect.value === "browser") {
-            startBrowserRecognition();
-        } else if (mediaRecorder && mediaRecorder.state === "recording") {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
             mediaRecorder.stop();
         } else {
-            await startTencentRecording();
+            await startWhisperRecording();
         }
     });
 
-    function startBrowserRecognition() {
-        const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Recognition) {
-            voiceStatus.textContent = "当前浏览器不支持普通话语音识别，请使用最新版 Edge 或 Chrome。";
-            return;
-        }
-        const recognition = new Recognition();
-        recognition.lang = "zh-CN";
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        voiceButton.disabled = true;
-        voiceButton.textContent = "正在听，请说成语……";
-        voiceStatus.textContent = "请清楚地说出四个字的成语。";
-        recognition.onresult = (event) => {
-            input.value = event.results[0][0].transcript.replace(/[，。！？、\s]/g, "");
-            voiceStatus.textContent = "识别完成，请先核对文字，再点击提交答案。";
-            input.focus();
-        };
-        recognition.onerror = () => {
-            voiceStatus.textContent = "没有听清楚，请靠近麦克风再试一次。";
-        };
-        recognition.onend = () => {
-            voiceButton.disabled = false;
-            voiceButton.textContent = "🎤 点击说成语";
-        };
-        recognition.start();
-    }
-
-    async function startTencentRecording() {
+    async function startWhisperRecording() {
         if (!navigator.mediaDevices || !window.MediaRecorder) {
             voiceStatus.textContent = "当前浏览器不能录音，请使用最新版 Edge 或 Chrome。";
             return;
@@ -309,7 +280,7 @@
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size) audioChunks.push(event.data);
             };
-            mediaRecorder.onstop = sendTencentAudio;
+            mediaRecorder.onstop = sendWhisperAudio;
             mediaRecorder.start();
             voiceButton.textContent = "⏹️ 说完请点这里";
             voiceButton.classList.add("recording");
@@ -322,10 +293,9 @@
         }
     }
 
-    async function sendTencentAudio() {
+    async function sendWhisperAudio() {
         window.clearTimeout(stopTimer);
         const requestedLanguage = languageSelect.value;
-        let browserFallbackNeeded = false;
         voiceButton.disabled = true;
         voiceButton.classList.remove("recording");
         voiceButton.textContent = "正在识别……";
@@ -349,21 +319,12 @@
             voiceStatus.textContent = "识别完成，请先核对文字，再点击提交答案。";
             input.focus();
         } catch (error) {
-            if (requestedLanguage === "mandarin") {
-                browserFallbackNeeded = true;
-                languageSelect.value = "browser";
-                voiceStatus.textContent = "腾讯云普通话暂时不可用，已切换浏览器。请再说一次成语。";
-            } else {
-                voiceStatus.textContent = error.message;
-            }
+            voiceStatus.textContent = error.message || "Whisper V3 暂时无法识别，请稍后重试。";
         } finally {
             voiceButton.disabled = false;
             voiceButton.textContent = "🎤 点击说成语";
             mediaRecorder = null;
             microphoneStream = null;
-            if (browserFallbackNeeded) {
-                startBrowserRecognition();
-            }
         }
     }
 </script>

@@ -152,7 +152,8 @@ def test_dashboard_history_and_report_render_in_english(
     assert_no_unexpected_chinese(report)
 
     assistant = client.get("/assistant").get_data(as_text=True)
-    assert "English (browser)" in assistant
+    assert "Whisper V3" in assistant
+    assert "SpeechRecognition" not in assistant
     assert "Start cognitive assessment" in assistant
     assert_no_unexpected_chinese(assistant)
 
@@ -206,6 +207,30 @@ def test_english_assessment_api_returns_english_question(
     assert payload["testing"] is True
     assert "Task 1 of 11" in payload["reply"]
     assert payload["question"]["domain"] == "Immediate memory"
+    assert not any(
+        "\u4e00" <= character <= "\u9fff"
+        for character in payload["question"]["prompt"]
+    )
+
+
+def test_selecting_english_voice_input_uses_the_english_question_bank(
+    client,
+    user_factory,
+    login_as,
+):
+    elder = user_factory(account_type="elder")
+    token = login_as(client, elder["id"])
+
+    response = client.post(
+        "/test/start",
+        json={"input_language": "english"},
+        headers=api_headers(token),
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["assessment_language"] == "en"
+    assert "Task 1 of 11" in payload["reply"]
     assert not any(
         "\u4e00" <= character <= "\u9fff"
         for character in payload["question"]["prompt"]

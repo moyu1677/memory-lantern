@@ -618,6 +618,196 @@ textarea {
     box-shadow: var(--shadow);
 }
 
+/* Generic content panels must always keep readable space from their edge.
+   Specialised dashboard, drawing and auth panels define their own spacing
+   later in this file. */
+.panel {
+    padding: clamp(22px, 3vw, 32px);
+}
+
+.panel > :first-child {
+    margin-top: 0;
+}
+
+.panel > :last-child {
+    margin-bottom: 0;
+}
+
+.panel + .panel {
+    margin-top: 20px;
+}
+
+.family-briefs-page {
+    display: grid;
+    gap: 20px;
+}
+
+.family-briefs-page .page-heading {
+    margin-bottom: 4px;
+}
+
+.family-briefs-eyebrow,
+.family-brief-step {
+    display: inline-flex;
+    align-items: center;
+    color: var(--primary-dark);
+    font-size: 0.76rem;
+    font-weight: 850;
+    letter-spacing: 0.11em;
+}
+
+.family-brief-panel {
+    position: relative;
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--line));
+}
+
+.family-brief-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: linear-gradient(#d7ae4f, var(--primary));
+}
+
+.family-brief-panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.family-brief-panel-heading h2 {
+    margin: 6px 0 0;
+    color: var(--primary-dark);
+    font-size: clamp(1.4rem, 2.8vw, 1.85rem);
+}
+
+.family-brief-panel-heading p {
+    max-width: 680px;
+    margin: 8px 0 0;
+    color: var(--text-soft);
+    line-height: 1.65;
+}
+
+.family-brief-row {
+    min-height: 84px;
+    padding: 18px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.family-brief-row:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.family-brief-row strong,
+.family-report-item h3 {
+    display: block;
+    color: var(--primary-dark);
+    font-size: 1.12rem;
+}
+
+.family-brief-row small {
+    display: block;
+    margin-top: 5px;
+    color: var(--text-soft);
+    line-height: 1.5;
+}
+
+.family-brief-row form {
+    flex: none;
+    margin: 0;
+}
+
+.family-brief-row button {
+    min-height: 52px;
+    padding-inline: 20px;
+}
+
+.family-brief-empty {
+    margin: 20px 0 0;
+    padding: 18px;
+    color: var(--text-soft);
+    line-height: 1.65;
+    border-radius: 14px;
+    background: #f5f8f6;
+}
+
+.family-report-item {
+    margin-top: 18px;
+    padding: 20px;
+    border: 1px solid #d7e3de;
+    border-radius: 18px;
+    background: #fbfdfc;
+}
+
+.family-report-meta {
+    margin: 0 0 9px;
+    color: var(--text-soft);
+    font-size: 0.88rem;
+}
+
+.family-report-item h3 {
+    margin: 0;
+    line-height: 1.45;
+}
+
+.family-report-item > p:not(.family-report-meta) {
+    margin: 10px 0 0;
+    color: var(--text-soft);
+    line-height: 1.65;
+}
+
+.care-report-signal-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.care-report-signal {
+    padding: 14px 16px;
+    border-left: 4px solid #77b89f;
+    border-radius: 0 13px 13px 0;
+    background: #eff8f4;
+}
+
+.care-report-signal p {
+    margin: 0;
+    color: #34564e;
+    line-height: 1.6;
+}
+
+.care-report-signal p + p {
+    margin-top: 6px;
+}
+
+@media (max-width: 620px) {
+    .panel {
+        padding: 20px;
+        border-radius: 18px;
+    }
+
+    .family-brief-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .family-brief-row button {
+        width: 100%;
+    }
+
+    .family-report-item {
+        padding: 17px;
+    }
+}
+
 .auth-card {
     padding: clamp(24px, 5vw, 40px);
 }

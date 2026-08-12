@@ -114,7 +114,7 @@ from questions import (
     score_answer,
     total_points,
 )
-from tencent_asr import TencentASRError, recognize_pcm
+from opencc import OpenCC
 from needs_engine import bounded_history, decide_next_action, extract_session_card
 from care_report_engine import generate_care_report
 from reports import build_assessment_report
@@ -190,34 +190,14 @@ CARE_REPORT_VALIDATION_PATH = (
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
-TENCENT_ASR_APP_ID = os.getenv("TENCENT_ASR_APP_ID")
-TENCENT_ASR_SECRET_ID = os.getenv("TENCENT_ASR_SECRET_ID")
-TENCENT_ASR_SECRET_KEY = os.getenv("TENCENT_ASR_SECRET_KEY")
-TENCENT_ASR_ENGINE = os.getenv("TENCENT_ASR_ENGINE", "16k_zh_en")
-TENCENT_ASR_ENGINES = {
-    # The public companion demo defaults to its browser-recognition path;
-    # older assessment endpoints retain the explicit Mandarin key below.
-    "browser": TENCENT_ASR_ENGINE,
-    # 普通话使用腾讯云作为主链路，产品页面在云端不可用时回退到
-    # 浏览器 Web Speech API；离线数据集测试只评价腾讯云主链路。
-    "mandarin": os.getenv(
-        "TENCENT_ASR_ENGINE_MANDARIN",
-        TENCENT_ASR_ENGINE,
-    ),
-    "chaoshan": os.getenv(
-        "TENCENT_ASR_ENGINE_CHAOSHAN",
-        TENCENT_ASR_ENGINE,
-    ),
-    "cantonese": os.getenv(
-        "TENCENT_ASR_ENGINE_CANTONESE",
-        "16k_yue",
-    ),
-}
-SPEECH_LANGUAGE_LABELS = {
-    "browser": "普通话",
-    "mandarin": "普通话",
-    "chaoshan": "潮汕话",
-    "cantonese": "粤语",
+# Voice input has one authoritative path: the user's remotely hosted Whisper
+# large-v3 service. The browser records only; it never transcribes speech.
+ASR_LANGUAGE_OPTIONS = {
+    "auto": {"label": "自动识别（中文 / English）", "whisper_language": "auto"},
+    "mandarin": {"label": "普通话", "whisper_language": "zh"},
+    "cantonese": {"label": "粤语", "whisper_language": "zh"},
+    "chaoshan": {"label": "潮汕话", "whisper_language": "zh"},
+    "english": {"label": "英语", "whisper_language": "en"},
 }
 _configured_ffmpeg = os.getenv("FFMPEG_PATH", "").strip()
 FFMPEG_PATH = Path(
@@ -225,6 +205,9 @@ FFMPEG_PATH = Path(
 )
 voice_service = RemoteVoiceService.from_environment()
 asr_service = RemoteAsrService.from_environment()
+# Whisper can return Traditional Chinese for Chinese speech. The product always
+# shows Simplified Chinese while leaving English output unchanged.
+SIMPLIFIED_CHINESE_CONVERTER = OpenCC("t2s")
 
 # ===========================================
 
@@ -309,6 +292,7 @@ def is_api_request():
     return (
         request.path == "/chat"
         or request.path.startswith("/voice/")
+        or request.path == "/voice-profiles/transcribe"
         or request.path.startswith("/test/")
         or request.path.startswith("/speech/")
         or request.path.startswith("/games/idiom/")
@@ -794,48 +778,48 @@ def get_voice_chat_state(user_id):
     return state
 
 
-def select_voice_reply_emotion(user_text, reply_text):
-    """Choose a restrained prosody instruction from the *new* reply.
+def infer_voice_reply_delivery(reply_text):
+    """Select the original private delivery control from the finished reply.
 
-    The authorised reference is used only for identity.  Its incidental mood
-    must never become the default mood of every answer, so the small text
-    control below is computed for each reply and bounded by the remote service.
+    This does not add words to the reply and exposes no emotion control in the
+    interface.  The selected family's one base voice remains the only voice
+    identity for every language.
     """
 
-    tone = infer_audio_demo_reply_tone(reply_text)
-    if tone is None:
-        tone = infer_audio_demo_reply_tone(user_text)
-    plans = {
-        "positive": {
-            "label": "轻微明朗",
-            "text": "语气温暖、轻微明朗而克制；自然微笑，不提高音量，不夸张。",
-            "strength": 0.27,
-        },
-        "comfort": {
-            "label": "轻微安抚",
-            "text": "语气平静、柔和，带一点安慰；不悲伤夸张，不压低到难以听清。",
-            "strength": 0.32,
-        },
-        "concern": {
-            "label": "轻微关切",
-            "text": "语气认真、平和，带一点关切；不要焦急、不要紧张、不要夸张。",
-            "strength": 0.26,
-        },
-    }
-    return plans.get(tone, {
-        "label": "自然陪伴",
-        "text": "语气温和、自然、日常，保持清晰和从容。",
-        "strength": 0.16,
-    })
+    reply = str(reply_text or "")
+    english = reply_language_for_message(reply) == "en"
+    if re.search(r"真替您高兴|听到这个消息真好|值得高兴|太好了|跟着高兴|\b(great|wonderful|glad|happy for you)\b", reply, re.IGNORECASE):
+        return (
+            "Please speak warmly and naturally, with a small, restrained smile."
+            if english else "请用温暖、自然微笑的语气朗读；不提高音量，不夸张。",
+            0.20,
+        )
+    if re.search(r"听起来.*(不容易|难受|辛苦)|我在这(里|儿)陪着您|不用独自承受|空落落|\b(I am here|not alone|that sounds difficult|I understand)\b", reply, re.IGNORECASE):
+        return (
+            "Please speak calmly, gently, and clearly, without exaggeration."
+            if english else "请用平静、轻柔、克制的安慰语气朗读；不模仿哭腔，不表现沉重悲伤。",
+            0.24,
+        )
+    if re.search(r"不着急|先歇一会儿|慢慢来|注意休息|\b(take your time|no rush|rest|take it slowly)\b", reply, re.IGNORECASE):
+        return (
+            "Please speak clearly and steadily, with gentle care and no urgency."
+            if english else "请用清晰、平和、带一点关切的语气朗读；不要焦急，不制造紧张。",
+            0.20,
+        )
+    return (None, 0.0)
 
 
-def issue_voice_reply_token(user_id, reply_text, user_text=""):
+def issue_voice_reply_token(user_id, reply_text):
     state = get_voice_chat_state(user_id)
     token = secrets.token_urlsafe(32)
+    emotion_text, emotion_strength = infer_voice_reply_delivery(reply_text)
     state["pending_voice_reply"] = {
         "token": token,
         "text": str(reply_text or "").strip(),
-        "emotion": select_voice_reply_emotion(user_text, reply_text),
+        # The original standalone behaviour is internal and per reply: no
+        # family/elder emotion picker and no extra emotional recording.
+        "emotion_text": emotion_text,
+        "emotion_strength": emotion_strength,
         "expires_at": datetime.now().timestamp() + VOICE_REPLY_TOKEN_TTL_SECONDS,
         "used": False,
     }
@@ -858,8 +842,42 @@ def consume_voice_reply_token(user_id, token):
         return pending, None
 
 
-def companion_chat_reply(user_id, user_input):
+def reply_language_for_message(user_text, requested_language=None):
+    """Use spoken English for an English reply even if the UI remains Chinese."""
+
+    if str(requested_language or "").strip().lower() == "english":
+        return "en"
+    text = str(user_text or "")
+    if not re.search(r"[\u4e00-\u9fff]", text) and re.search(r"[A-Za-z]", text):
+        return "en"
+    return "zh"
+
+
+def companion_chat_system_prompt(language):
+    """Keep each companion reply in the language the elder is using."""
+
+    if language == "en":
+        return (
+            "You are the voice companion for Memory Lantern. Reply in warm, "
+            "brief, easy-to-understand English suitable for older adults, usually "
+            "in no more than three sentences. Use only what the older adult has "
+            "explicitly said. Do not make medical, psychological, or ability "
+            "diagnoses. Transcripts can contain natural fillers, repeated words, "
+            "or self-corrections such as um and uh; understand their intended "
+            "meaning, but do not repeat, correct, or comment on those disfluencies. "
+        )
+    return (
+        "你是“忆路明灯”的语音陪伴助手。请用温和、简短、容易理解的中文回应老人，通常不超过三句。"
+        "只依据老人明确说过的话，不作医疗、心理或能力判断。"
+        "转写中出现的“嗯、呃、啊”、重复和自我修正属于自然说话过程：理解老人真正想表达的意思，"
+        "但不要在回复中复述、纠正或评价这些词。"
+    )
+
+
+def companion_chat_reply(user_id, user_input, requested_language=None):
     state = get_voice_chat_state(user_id)
+    reply_language = reply_language_for_message(user_input, requested_language)
+    state["reply_language"] = reply_language
     state["history"].append({"role": "user", "content": user_input})
     decision = decide_next_action(state["stage"], user_input)
     state["stage"] = decision.next_stage
@@ -872,16 +890,25 @@ def companion_chat_reply(user_id, user_input):
                 card_saved = True
         except Exception:
             app.logger.exception("已授权需求卡提取失败")
-        reply = (
-            "好的，我会只记下您同意分享的这件事，不分享完整聊天或录音。"
-            if card_saved else "现在还没能整理成家属卡，所以不会向家属显示；我们先继续聊。"
-        )
+        if reply_language == "en":
+            reply = (
+                "Thank you. I will only note what you agreed to share, not the full conversation or recording."
+                if card_saved else "I will not show this to family as a care note. We can keep talking."
+            )
+        else:
+            reply = (
+                "好的，我会只记下您同意分享的这件事，不分享完整聊天或录音。"
+                if card_saved else "现在还没能整理成家属卡，所以不会向家属显示；我们先继续聊。"
+            )
     else:
-        guidance = decision.instruction or "正常陪伴聊天即可。不要把闲聊理解为需求，不要主动盘问、诊断或替老人下结论。"
+        guidance = (
+            "Continue ordinary companionship. Do not treat casual conversation as a care request, do not interrogate, diagnose, or draw conclusions for the older adult."
+            if reply_language == "en" else
+            (decision.instruction or "正常陪伴聊天即可。不要把闲聊理解为需求，不要主动盘问、诊断或替老人下结论。")
+        )
         reply = get_ai_reply(
             user_input,
-            "你是“忆路明灯”的语音陪伴助手。请用温和、简短、容易理解的中文回应老人，通常不超过三句。"
-            "只依据老人明确说过的话，不作医疗、心理或能力判断。" + guidance,
+            companion_chat_system_prompt(reply_language) + guidance,
             history=state["history"][:-1],
         )
     state["history"].append({"role": "assistant", "content": reply})
@@ -999,6 +1026,25 @@ def format_result(state):
     )
 
 
+def attach_assessment_voice_reply(state, payload):
+    """Attach a one-time family-voice token to a test response when available.
+
+    Assessment prompts and feedback use the same consented voice selected by
+    the elder for companion chat.  The token contains server-generated text
+    only, so a browser cannot ask the synthesis service to say arbitrary text.
+    """
+
+    reply = str(payload.get("reply") or "").strip()
+    if not reply:
+        return payload
+    profile = get_active_voice_profile(state["user_id"])
+    if profile is not None:
+        payload["voice_reply_token"] = issue_voice_reply_token(
+            state["user_id"], reply
+        )
+    return payload
+
+
 def finish_or_continue_test(state, acknowledgement="回答已记录。"):
     """在一次回答入账后，统一生成下一题或最终结果。"""
     question_count = len(state["questions"])
@@ -1029,22 +1075,22 @@ def finish_or_continue_test(state, acknowledgement="回答已记录。"):
         test_id = session.pop("test_id", None)
         if test_id:
             TEST_SESSIONS.pop(test_id, None)
-        return {
+        return attach_assessment_voice_reply(state, {
             "testing": False,
             "completed": True,
             "progress": f"{question_count}/{question_count}",
             "reply": reply,
             "question": None,
-        }
+        })
 
     next_index = state["question_index"]
-    return {
+    return attach_assessment_voice_reply(state, {
         "testing": True,
         "completed": False,
         "progress": f"{next_index + 1}/{question_count}",
         "reply": acknowledgement + "\n\n" + question_text(state, next_index),
         "question": public_question(state["questions"], next_index),
-    }
+    })
 
 
 @app.route("/")
@@ -1255,44 +1301,25 @@ class AudioTranscriptionError(RuntimeError):
         self.status_code = status_code
 
 
-def transcribe_audio_file(audio_file, language):
-    selected_language = str(language or "browser").strip().lower()
-    if selected_language not in TENCENT_ASR_ENGINES:
-        raise AudioTranscriptionError("不支持所选的语音类型。", 400)
+def transcribe_audio_file(audio_file, language="auto"):
+    """Use the original controlled Whisper large-v3 flow for every voice mode."""
+
+    selected_language = str(language or "auto").strip().lower()
+    # Accept a stale pre-migration page, but never route it to browser ASR.
     if selected_language == "browser":
-        try:
-            return asr_service.transcribe(
-                audio_file.stream, audio_file.filename, audio_file.mimetype
-            ), selected_language
-        except AsrServiceError as exc:
-            raise AudioTranscriptionError(str(exc), 503) from exc
-    if not all([TENCENT_ASR_APP_ID, TENCENT_ASR_SECRET_ID, TENCENT_ASR_SECRET_KEY]):
-        raise AudioTranscriptionError("腾讯云方言识别尚未配置。", 503)
-    if not FFMPEG_PATH.exists():
-        raise AudioTranscriptionError("项目中缺少 ffmpeg，无法转换方言录音。", 500)
-    suffix = Path(audio_file.filename).suffix.lower()
-    if suffix not in {".wav", ".mp3", ".m4a", ".webm", ".ogg"}:
-        suffix = ".webm"
+        selected_language = "auto"
+    if selected_language not in ASR_LANGUAGE_OPTIONS:
+        raise AudioTranscriptionError("不支持所选的语音类型。", 400)
     try:
-        with tempfile.TemporaryDirectory(prefix="memory_lantern_asr_") as directory:
-            input_path, pcm_path = Path(directory) / f"recording{suffix}", Path(directory) / "recording.pcm"
-            audio_file.save(input_path)
-            conversion = subprocess.run(
-                [str(FFMPEG_PATH), "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-ar", "16000", "-ac", "1", "-f", "s16le", str(pcm_path)],
-                capture_output=True, text=True, timeout=30, check=False,
-            )
-            if conversion.returncode != 0 or not pcm_path.exists():
-                raise AudioTranscriptionError("录音格式转换失败，请重新录音。", 400)
-            transcript = recognize_pcm(pcm_path, TENCENT_ASR_APP_ID, TENCENT_ASR_SECRET_ID, TENCENT_ASR_SECRET_KEY, TENCENT_ASR_ENGINES[selected_language])
-    except AudioTranscriptionError:
-        raise
-    except subprocess.TimeoutExpired as exc:
-        raise AudioTranscriptionError("录音转换超时，请缩短录音后重试。", 504) from exc
-    except TencentASRError as exc:
-        raise AudioTranscriptionError(str(exc), 502) from exc
-    except Exception as exc:
-        app.logger.exception("方言 ASR 处理失败")
-        raise AudioTranscriptionError("语音识别处理失败，请稍后再试。", 500) from exc
+        transcript = asr_service.transcribe(
+            audio_file.stream,
+            audio_file.filename,
+            audio_file.mimetype,
+            language=ASR_LANGUAGE_OPTIONS[selected_language]["whisper_language"],
+        )
+    except AsrServiceError as exc:
+        raise AudioTranscriptionError(str(exc), 503) from exc
+    transcript = SIMPLIFIED_CHINESE_CONVERTER.convert(str(transcript or "").strip())
     if not transcript:
         raise AudioTranscriptionError("没有识别到清晰的语音，请靠近麦克风后再说一次。", 422)
     return transcript, selected_language
@@ -1304,7 +1331,7 @@ def audio_demo_recognize():
     if audio_file is None or not audio_file.filename:
         return jsonify({"error": "没有收到录音文件。"}), 400
     try:
-        transcript, language = transcribe_audio_file(audio_file, request.form.get("language", "browser"))
+        transcript, language = transcribe_audio_file(audio_file, request.form.get("language", "auto"))
     except AudioTranscriptionError as exc:
         return jsonify({"error": str(exc)}), exc.status_code
     response = jsonify({"text": transcript, "language": language})
@@ -1612,12 +1639,16 @@ def transcribe_family_voice_sample():
     if not is_elder_bound_to(g.current_user["id"], elder_id):
         abort(403)
 
-    sample = request.files.get("reference_audio")
+    # Match the standalone family-audio request shape (``audio``) while also
+    # accepting the former integrated field name for an already-open page.
+    sample = request.files.get("audio") or request.files.get("reference_audio")
     if sample is None or not sample.filename:
         return jsonify({"error": "请先录音或选择一段声音文件。"}), 400
     try:
         validate_reference_audio(sample.filename, sample.mimetype)
-        transcript, language = transcribe_audio_file(sample, "browser")
+        transcript, language = transcribe_audio_file(
+            sample, request.form.get("language", "auto")
+        )
     except VoiceServiceError as exc:
         return jsonify({"error": str(exc)}), 400
     except AudioTranscriptionError as exc:
@@ -1677,7 +1708,12 @@ def generate_family_brief(elder_id):
         flash("这位老人最近还没有可用于生成报告的聊天内容。", "error")
         return redirect(url_for("family_briefs"))
     try:
-        report = generate_care_report(deepseek_client, DEEPSEEK_MODEL, history)
+        report = generate_care_report(
+            deepseek_client,
+            DEEPSEEK_MODEL,
+            history,
+            language=current_ui_language(),
+        )
     except Exception:
         app.logger.exception("家庭关怀报告生成失败：elder_id=%s", elder_id)
         flash("报告暂时生成失败，请稍后再试。", "error")
@@ -2122,14 +2158,7 @@ def assistant_page():
 @elder_required
 def recognize_voice_companion():
     """Transcribe an elder's companion recording through the configured ASR tunnel."""
-    audio_file = request.files.get("audio")
-    if audio_file is None or not audio_file.filename:
-        return jsonify({"error": "没有收到录音文件。"}), 400
-    try:
-        transcript, language = transcribe_audio_file(audio_file, "browser")
-    except AudioTranscriptionError as exc:
-        return jsonify({"error": str(exc)}), exc.status_code
-    return jsonify({"text": transcript, "language": language})
+    return audio_demo_recognize()
 
 
 @app.route("/voice/preview", methods=["POST"])
@@ -2167,8 +2196,8 @@ def synthesize_assistant_reply():
         audio, content_type = voice_service.synthesize(
             profile["remote_voice_id"],
             pending_reply["text"],
-            emotion_text=pending_reply["emotion"]["text"],
-            emotion_strength=pending_reply["emotion"]["strength"],
+            emotion_text=pending_reply["emotion_text"],
+            emotion_strength=pending_reply["emotion_strength"],
         )
     except VoiceServiceError as exc:
         with VOICE_REPLY_LOCK:
@@ -2176,6 +2205,31 @@ def synthesize_assistant_reply():
         return jsonify({"error": str(exc)}), 503
     mark_voice_profile_used(profile["id"])
     return _audio_response(audio, content_type)
+
+
+@app.route("/voice/test-narration", methods=["POST"])
+@elder_required
+def issue_current_test_narration():
+    """Issue a fresh, bounded token for replaying the current test question."""
+
+    state = get_test_state()
+    if state is None:
+        return jsonify({"error": "当前没有正在进行的测试。"}), 409
+    profile = get_active_voice_profile(g.current_user["id"])
+    if profile is None:
+        return jsonify({
+            "error": "还没有可用的家人声音。请先在“选择陪伴声音”中完成选择。"
+        }), 409
+    index = state["question_index"]
+    if index >= len(state["questions"]):
+        return jsonify({"error": "当前测试已经完成。"}), 409
+    narration = question_text(state, index)
+    return jsonify({
+        "voice_reply_token": issue_voice_reply_token(
+            g.current_user["id"], narration
+        ),
+        "text": narration,
+    })
 
 
 @app.route("/games/idiom")
@@ -2783,13 +2837,16 @@ def chat():
 def voice_chat():
     """Authenticated elder conversation with consent-first need extraction."""
 
-    user_input = str((request.get_json(silent=True) or {}).get("message") or "").strip()
+    payload = request.get_json(silent=True) or {}
+    user_input = str(payload.get("message") or "").strip()
     if not user_input:
         return jsonify({"error": "没有收到消息。"}), 400
     if len(user_input) > 2000:
         return jsonify({"error": "单次对话不能超过2000个字。"}), 400
     try:
-        reply, card_saved = companion_chat_reply(g.current_user["id"], user_input)
+        reply, card_saved = companion_chat_reply(
+            g.current_user["id"], user_input, payload.get("language")
+        )
     except Exception:
         app.logger.exception("语音陪伴聊天请求处理失败")
         return jsonify({"error": "服务暂时无法回答，请稍后再试。"}), 500
@@ -2799,7 +2856,7 @@ def voice_chat():
         "conversation_mode": "voice_companion",
         "need_card_saved": card_saved,
         "voice_reply_token": (
-            issue_voice_reply_token(g.current_user["id"], reply, user_input) if profile else None
+            issue_voice_reply_token(g.current_user["id"], reply) if profile else None
         ),
     })
 
@@ -2807,78 +2864,37 @@ def voice_chat():
 @app.route('/speech/recognize', methods=['POST'])
 @login_required
 def recognize_speech():
-    language = str(request.form.get("language", "chaoshan")).strip().lower()
-    engine = TENCENT_ASR_ENGINES.get(language)
-    if engine is None:
-        return jsonify({"error": "不支持所选择的语音类型。"}), 400
-    language_label = SPEECH_LANGUAGE_LABELS[language]
-
-    if not all([
-        TENCENT_ASR_APP_ID,
-        TENCENT_ASR_SECRET_ID,
-        TENCENT_ASR_SECRET_KEY,
-    ]):
-        return jsonify({
-            "error": "腾讯云语音识别尚未配置，请填写 .env 中的腾讯云密钥。",
-            "fallback_recommended": language == "mandarin",
-            "error_kind": "configuration",
-        }), 503
-
     audio_file = request.files.get("audio")
     if audio_file is None or not audio_file.filename:
         return jsonify({"error": "没有收到录音文件。"}), 400
-
-    if not FFMPEG_PATH.exists():
-        return jsonify({"error": "项目目录中缺少 ffmpeg.exe。"}), 500
-
     try:
-        with tempfile.TemporaryDirectory(prefix="memory_lantern_asr_") as temp_dir:
-            input_path = Path(temp_dir) / "recording.webm"
-            pcm_path = Path(temp_dir) / "recording.pcm"
-            audio_file.save(input_path)
+        transcript, language = transcribe_audio_file(
+            audio_file, request.form.get("language", "auto")
+        )
+    except AudioTranscriptionError as exc:
+        return jsonify({"error": str(exc)}), exc.status_code
 
-            conversion = convert_audio_to_pcm(input_path, pcm_path)
-            if conversion.returncode != 0 or not pcm_path.exists():
-                app.logger.warning("音频转码失败: %s", conversion.stderr)
-                return jsonify({"error": "录音格式转换失败，请重新录音。"}), 400
+    observation = None
+    if FFMPEG_PATH.exists():
+        try:
+            suffix = Path(audio_file.filename).suffix.lower() or ".webm"
+            with tempfile.TemporaryDirectory(prefix="memory_lantern_speech_") as temp_dir:
+                input_path = Path(temp_dir) / f"recording{suffix}"
+                pcm_path = Path(temp_dir) / "recording.pcm"
+                audio_file.stream.seek(0)
+                audio_file.save(input_path)
+                conversion = convert_audio_to_pcm(input_path, pcm_path)
+                if conversion.returncode == 0 and pcm_path.exists():
+                    observation = analyze_pcm_file(pcm_path, transcript=transcript)
+                    attach_speech_observation(observation)
+        except (OSError, subprocess.SubprocessError):
+            app.logger.warning("Whisper 转写已完成，但本轮语音表现分析未能生成")
 
-            transcript = recognize_pcm(
-                pcm_path,
-                TENCENT_ASR_APP_ID,
-                TENCENT_ASR_SECRET_ID,
-                TENCENT_ASR_SECRET_KEY,
-                engine,
-            )
-            if not transcript:
-                return jsonify({
-                    "error": f"没有识别到清晰的{language_label}，请靠近麦克风再说一次。",
-                    "fallback_recommended": language == "mandarin",
-                    "error_kind": "empty_transcript",
-                }), 422
-            observation = analyze_pcm_file(pcm_path, transcript=transcript)
-            attach_speech_observation(observation)
-            return jsonify({
-                "text": transcript,
-                "language": language,
-                "speech_observation": observation,
-            })
-
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "录音转换超时，请缩短录音后重试。"}), 504
-    except TencentASRError as exc:
-        print("腾讯云 ASR 调用失败:", exc)
-        return jsonify({
-            "error": str(exc),
-            "fallback_recommended": language == "mandarin",
-            "error_kind": "cloud_unavailable",
-        }), 502
-    except Exception as exc:
-        print("语音识别处理失败:", exc)
-        return jsonify({
-            "error": "语音识别处理失败，请稍后重试。",
-            "fallback_recommended": language == "mandarin",
-            "error_kind": "internal_error",
-        }), 500
+    return jsonify({
+        "text": transcript,
+        "language": language,
+        "speech_observation": observation,
+    })
 
 
 def convert_audio_to_pcm(input_path, pcm_path):
@@ -2943,13 +2959,17 @@ def start_test():
         TEST_SESSIONS.pop(previous_id, None)
 
     data = request.get_json(silent=True) or {}
-    input_language = str(data.get("input_language", "browser")).strip().lower()
-    if input_language not in {"browser", "english", "mandarin", "cantonese", "chaoshan"}:
-        input_language = "browser"
+    input_language = str(data.get("input_language", "auto")).strip().lower()
+    if input_language not in ASR_LANGUAGE_OPTIONS:
+        input_language = "auto"
 
     test_id = uuid.uuid4().hex
-    ui_language = current_ui_language()
-    selected_questions = build_test_questions(language=ui_language)
+    # The language selected next to the microphone controls the entire
+    # assessment content.  Choosing English therefore changes both questions
+    # and deterministic answer rules, even when the surrounding site UI is
+    # still Chinese.
+    assessment_language = "en" if input_language == "english" else current_ui_language()
+    selected_questions = build_test_questions(language=assessment_language)
     TEST_SESSIONS[test_id] = {
         "test_id": test_id,
         "user_id": g.current_user["id"],
@@ -2958,7 +2978,7 @@ def start_test():
         "score": 0,
         "domain_scores": {},
         "input_language": input_language,
-        "ui_language": ui_language,
+        "ui_language": assessment_language,
         # 只记录题号和得分，不保存老人的原始回答。
         "scored_answers": [],
         "speech_observations": [],
@@ -2974,19 +2994,20 @@ def start_test():
         "pace by typing or speaking. Correctness is not shown during the assessment.\n\n"
         "This assessment is for project demonstration and preliminary reference only. "
         "It is not a medical diagnosis.\n\n"
-        if ui_language == "en" else
+        if assessment_language == "en" else
         "下面开始认知表现测试，共11题：前10题为原有计分题，第11题为画钟辅助观察。"
         "请放松作答，可以打字，也可以点击说话。测试过程中不会立即提示对错。\n\n"
         "本测试仅用于项目演示和初步参考，不构成医学诊断。\n\n"
     )
     reply = intro + question_text(TEST_SESSIONS[test_id], 0)
-    return jsonify({
+    return jsonify(attach_assessment_voice_reply(TEST_SESSIONS[test_id], {
         "testing": True,
         "completed": False,
         "progress": f"1/{TEST_QUESTION_COUNT}",
         "reply": reply,
         "question": public_question(selected_questions, 0),
-    })
+        "assessment_language": assessment_language,
+    }))
 
 
 @app.route('/test/answer', methods=['POST'])
@@ -3076,14 +3097,14 @@ def answer_test():
                     if state.get("ui_language") == "en" else
                     "刚才的回答中包含不同做法，或者还不够明确。请您再明确说一次：遇到这种情况，您会怎么做？"
                 )
-                return jsonify({
+                return jsonify(attach_assessment_voice_reply(state, {
                     "testing": True,
                     "completed": False,
                     "clarification_required": True,
                     "progress": f"{index + 1}/{len(state['questions'])}",
                     "reply": reply,
                     "question": public_question(state["questions"], index),
-                })
+                }))
         earned = question["points"] if resolved_judgment_decision == "correct" else 0
     else:
         earned = score_answer(question, processed_answer.final_answer)
@@ -3191,9 +3212,10 @@ def test_status():
 
     index = state["question_index"]
     question_count = len(state["questions"])
-    return jsonify({
+    return jsonify(attach_assessment_voice_reply(state, {
         "testing": True,
         "progress": f"{index + 1}/{question_count}",
+        "assessment_language": state.get("ui_language", "zh"),
         "reply": (
             ("An unfinished assessment was found. We will continue from the current task.\n\n"
              if state.get("ui_language") == "en" else
@@ -3201,7 +3223,7 @@ def test_status():
             + question_text(state, index)
         ),
         "question": public_question(state["questions"], index),
-    })
+    }))
 
 
 @app.route('/test/reset', methods=['POST'])

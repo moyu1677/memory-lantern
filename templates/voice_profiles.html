@@ -111,7 +111,7 @@
                         <label class="voice-source" for="voice-reference-audio"><strong>📁 上传音频文件</strong><small>支持 WAV、MP3、M4A、WEBM、OGG</small></label>
                     </div>
                     <p class="voice-status" id="voice-sample-status" role="status">请选择“直接录音”或“上传音频文件”。</p>
-                    <button class="voice-analyse" type="button" id="voice-analyse-button" disabled>识别这段声音并核对内容</button>
+                    <button class="voice-analyse" type="button" id="voice-analyse-button" hidden>重新识别这段声音</button>
 
                     <section class="voice-review" id="voice-review" hidden aria-live="polite">
                         <strong>请核对系统听到的话</strong>
@@ -172,18 +172,70 @@
     const transcript = document.getElementById('voice-transcript');
     const reviewConfirmed = document.getElementById('voice-review-confirmed');
     const status = document.getElementById('voice-sample-status');
+    // Keep the capture path identical to the proven standalone audio demo:
+    // browser MediaRecorder produces WebM, then onstop immediately triggers
+    // one automatic remote transcription.
     let recorder = null, stream = null, chunks = [];
+    let recognitionInProgress = false;
 
     const selectedFile = () => sampleInput?.files?.[0];
     const showStatus = message => { if (status) status.textContent = message; };
     function updateSubmit() { submitButton.disabled = !selectedFile() || !reviewConfirmed.checked || !consent.checked; }
     function resetReview() { review.hidden = true; transcript.value = ''; reviewConfirmed.checked = false; reviewConfirmed.disabled = true; updateSubmit(); }
-    function sampleReady(message) { resetReview(); analyseButton.disabled = !selectedFile(); showStatus(message); }
-
-    sampleInput.addEventListener('change', () => {
+    function sampleReady(message) {
+        resetReview();
+        analyseButton.disabled = !selectedFile();
+        analyseButton.hidden = true;
+        showStatus(message);
+    }
+    async function recognizePreparedSample(file) {
+        if (!file || recognitionInProgress) return;
+        recognitionInProgress = true;
+        resetReview();
+        analyseButton.hidden = true;
+        showStatus('正在自动识别这段声音，请稍候…');
+        try {
+            const data = new FormData();
+            // Keep the recording request exactly aligned with the proven
+            // standalone family-audio page.  ``elder_id`` is the only extra
+            // field required by the integrated portal's binding check.
+            data.set('audio', file, file.name || 'family-voice.webm');
+            data.set('language', 'auto');
+            data.set('elder_id', elderSelect.value);
+            const response = await fetch('{{ url_for("transcribe_family_voice_sample") }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrfToken },
+                body: data,
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.error || '语音识别暂时不可用，请稍后重试。');
+            const recognisedText = String(payload.text || '').trim();
+            if (!recognisedText) throw new Error('没有识别到清晰的说话内容，请重新录音后再试。');
+            transcript.value = recognisedText;
+            review.hidden = false;
+            reviewConfirmed.disabled = false;
+            reviewConfirmed.checked = false;
+            review.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            showStatus('识别完成。请核对下方转写内容；确认无误后即可继续授权。');
+        } catch (error) {
+            analyseButton.hidden = false;
+            analyseButton.disabled = !selectedFile();
+            showStatus(error.message || '自动识别失败，请重新录音或点击“重新识别这段声音”。');
+        } finally {
+            recognitionInProgress = false;
+            updateSubmit();
+        }
+    }
+    function prepareSample() {
         const file = selectedFile();
-        sampleReady(file ? `已选择：${file.name}。下一步请识别并核对内容。` : '请选择“直接录音”或“上传音频文件”。');
-    });
+        if (!file) {
+            sampleReady('请选择“直接录音”或“上传音频文件”。');
+            return;
+        }
+        recognizePreparedSample(file);
+    }
+
+    sampleInput.addEventListener('change', prepareSample);
     consent.addEventListener('change', updateSubmit);
     reviewConfirmed.addEventListener('change', updateSubmit);
     transcript.addEventListener('input', () => { if (!review.hidden) { reviewConfirmed.checked = false; updateSubmit(); } });
@@ -200,39 +252,19 @@
             recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
             chunks = [];
             recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-            recorder.onstart = () => { recordButton.classList.add('recording'); recordButton.innerHTML = '<strong>■ 结束录音</strong><small>请自然地说一段完整的话</small>'; showStatus('正在录音，请自然说 10–30 秒；完成后点击“结束录音”。'); };
+            recorder.onstart = () => { recordButton.classList.add('recording'); recordButton.innerHTML = '<strong>■ 结束录音</strong><small>请继续自然地说一段话</small>'; showStatus('正在录音，请自然说 10–30 秒。'); };
             recorder.onstop = () => {
                 stream?.getTracks().forEach(track => track.stop()); stream = null;
                 const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
                 const transfer = new DataTransfer(); transfer.items.add(new File([blob], 'family-voice.webm', { type: blob.type })); sampleInput.files = transfer.files;
                 recordButton.classList.remove('recording'); recordButton.innerHTML = '<strong>🎤 重新录音</strong><small>点击开始；再次点击结束录制</small>';
-                sampleReady('录音已准备好。下一步请识别并核对内容。');
+                prepareSample();
             };
             recorder.start();
         } catch (_) { showStatus('无法使用麦克风，请允许浏览器麦克风权限，或选择“上传音频文件”。'); }
     });
 
-    analyseButton.addEventListener('click', async () => {
-        const file = selectedFile();
-        if (!file) { showStatus('请先录音或选择一段声音文件。'); return; }
-        analyseButton.disabled = true;
-        const original = analyseButton.textContent;
-        analyseButton.textContent = '正在识别，请稍候…';
-        showStatus('正在通过受控语音识别服务核对说话内容…');
-        try {
-            const data = new FormData();
-            data.set('_csrf_token', csrfToken); data.set('elder_id', elderSelect.value); data.set('reference_audio', file, file.name);
-            const response = await fetch('{{ url_for("transcribe_family_voice_sample") }}', { method: 'POST', body: data });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(payload.error || '语音识别暂时不可用，请稍后重试。');
-            const recognisedText = String(payload.text || '').trim();
-            if (!recognisedText) throw new Error('没有识别到清晰的说话内容，请重新录音后再试。');
-            transcript.value = recognisedText; review.hidden = false; reviewConfirmed.disabled = false; reviewConfirmed.checked = false;
-            review.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            showStatus('识别完成。请核对下方转写内容；若不一致，请重新录音或更换文件。');
-        } catch (error) { showStatus(error.message || '识别失败，请重新录音或稍后重试。'); }
-        finally { analyseButton.textContent = original; analyseButton.disabled = !selectedFile(); updateSubmit(); }
-    });
+    analyseButton.addEventListener('click', () => recognizePreparedSample(selectedFile()));
 
     document.querySelectorAll('[data-preview-profile]').forEach(button => button.addEventListener('click', async () => {
         button.disabled = true;

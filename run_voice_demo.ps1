@@ -17,18 +17,61 @@ param(
     # PowerShell window.
     [switch]$DetachAfterHealth,
 
-    [string]$SshHost = 'teacher-server'
+    [string]$SshHost = 'teacher-server',
+
+    # Optional explicit database for an isolated verification run.  The normal
+    # launch path continues to use the established project database.
+    [string]$DatabasePath
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$python = if ([string]::IsNullOrWhiteSpace($env:MEMORY_LANTERN_PYTHON)) {
-    Join-Path $projectRoot '.venv\Scripts\python.exe'
-} else {
+$projectPython = Join-Path $projectRoot '.venv\Scripts\python.exe'
+$python = if (-not [string]::IsNullOrWhiteSpace($env:MEMORY_LANTERN_PYTHON)) {
+    # An explicit interpreter always wins; this is useful for a shared venv.
     $env:MEMORY_LANTERN_PYTHON
+} elseif (Test-Path -LiteralPath $projectPython) {
+    $projectPython
+} else {
+    # This repository is sometimes opened as a copied/recovered final version
+    # without its original .venv folder.  Do not start a half-configured web
+    # server in that case: use the available Python interpreter that already
+    # runs the project, or fail before opening the browser.
+    $availablePython = Get-Command python -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $availablePython) {
+        $null
+    } else {
+        $availablePython.Source
+    }
 }
 $deepseekKeyFile = Get-ChildItem -LiteralPath $projectRoot -Filter 'deepseek*.txt' -File |
     Select-Object -First 1 -ExpandProperty FullName
+if ([string]::IsNullOrWhiteSpace($deepseekKeyFile)) {
+    # A recovered final-version folder intentionally does not duplicate secret
+    # files. Reuse a sibling project's existing key in memory only.
+    $siblingRoot = Split-Path -Parent $projectRoot
+    $deepseekKeyFile = Get-ChildItem -LiteralPath $siblingRoot -Directory |
+        ForEach-Object {
+            Get-ChildItem -LiteralPath $_.FullName -Filter 'deepseek*.txt' -File -ErrorAction SilentlyContinue
+        } |
+        Select-Object -First 1 -ExpandProperty FullName
+}
+$projectDatabasePath = Join-Path $projectRoot 'data\memory_lantern.db'
+$preservedDatabasePath = Join-Path (Split-Path -Parent $projectRoot) 'memory-lantern-sync\data\memory_lantern.db'
+# The final recovered code and the user's established accounts are stored
+# separately.  Always prefer the preserved account database when it exists;
+# never create an empty sibling database and make existing passwords appear
+# to have changed.
+$databasePath = if (-not [string]::IsNullOrWhiteSpace($DatabasePath)) {
+    [System.IO.Path]::GetFullPath($DatabasePath)
+} elseif (Test-Path -LiteralPath $preservedDatabasePath) {
+    $preservedDatabasePath
+} else {
+    $projectDatabasePath
+}
+if (-not (Test-Path -LiteralPath $databasePath)) {
+    throw "Configured database was not found: $databasePath"
+}
 $tunnel = $null
 $appProcess = $null
 
@@ -92,8 +135,12 @@ for env_file in "$dir/.env" "$dir/remote_asr/.env"; do
   fi
 done
 '@.Replace('__PORT__', "$Port").Replace('__KEY_NAME__', $KeyName)
+    # The project is maintained on Windows, while this payload is executed by
+    # Bash on the GPU host.  Normalise CRLF before encoding so Bash does not
+    # receive a literal carriage return at the end of `for` / `do` lines.
+    $remoteScriptForBash = $remoteScript -replace "`r`n", "`n"
     $encoded = [Convert]::ToBase64String(
-        [System.Text.Encoding]::UTF8.GetBytes($remoteScript)
+        [System.Text.Encoding]::UTF8.GetBytes($remoteScriptForBash)
     )
     $remoteOutput = & ssh $SshHost "echo $encoded | base64 -d | bash"
     return [string]($remoteOutput -join "`n")
@@ -113,6 +160,14 @@ if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
 
 if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
     throw 'DEEPSEEK_API_KEY is empty.'
+}
+
+$appPortInUse = [bool](Get-NetTCPConnection -State Listen -LocalPort $AppPort -ErrorAction SilentlyContinue)
+if ($appPortInUse) {
+    # A login page can be served by an older process that lacks the remote
+    # ASR/TTS configuration. Treating that as a successful health check is
+    # exactly how a browser ends up recording but never recognising speech.
+    throw "App port $AppPort is already occupied. Stop the existing Memory Lantern process before starting the complete voice service."
 }
 
 $ttsPortInUse = [bool](Get-NetTCPConnection -State Listen -LocalPort $TtsPort -ErrorAction SilentlyContinue)
@@ -149,6 +204,12 @@ try {
             '-N',
             '-o', 'ExitOnForwardFailure=yes',
             '-o', 'ConnectTimeout=12',
+            # Keep the controlled forwarding pair alive when an idle local
+            # web session lasts a while. Without an application-level keepalive
+            # some SSH hops can silently drop the ASR/TTS tunnel even though
+            # the browser continues to record normally.
+            '-o', 'ServerAliveInterval=20',
+            '-o', 'ServerAliveCountMax=3',
             '-L', $forwardSpec,
             '-L', $asrForwardSpec,
             $SshHost
@@ -170,6 +231,7 @@ try {
     $env:ASR_URL = "http://127.0.0.1:$AsrPort"
     $env:ASR_API_KEY = $remoteAsrApiKey
     $env:ASR_TIMEOUT_SECONDS = '90'
+    $env:DATABASE_PATH = $databasePath
     $env:FLASK_HOST = '127.0.0.1'
     $env:FLASK_PORT = "$AppPort"
     $env:FLASK_DEBUG = 'false'

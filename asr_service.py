@@ -34,7 +34,13 @@ class RemoteAsrService:
     def configured(self) -> bool:
         return bool(self.base_url and self.api_key)
 
-    def transcribe(self, audio_stream, filename: str, mimetype: str | None) -> str:
+    def transcribe(
+        self,
+        audio_stream,
+        filename: str,
+        mimetype: str | None,
+        language: str = "auto",
+    ) -> str:
         if not self.configured:
             raise AsrServiceError("语音识别服务尚未连接。")
         safe_name = Path(filename or "recording.webm").name
@@ -60,7 +66,10 @@ class RemoteAsrService:
                         mimetype or "application/octet-stream",
                     )
                 },
-                data={"language": "zh"},
+                # Family voice samples may contain either Chinese or English.
+                # Preserve Whisper's language detection unless the caller has
+                # an explicit supported language constraint.
+                data={"language": language if language in {"zh", "en"} else "auto"},
                 timeout=self.timeout_seconds,
             )
         except (OSError, requests.RequestException) as exc:

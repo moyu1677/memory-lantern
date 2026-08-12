@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>普通话 Whisper V3 转写测试</title>
+    <style>
+        body { max-width: 900px; margin: 32px auto; padding: 0 24px; color: #172321; background: #f4f6f2; font: 18px/1.6 system-ui, sans-serif; }
+        .panel { padding: 28px; border-radius: 20px; background: #fff; box-shadow: 0 10px 35px rgba(34, 65, 59, .12); }
+        label { display: block; margin: 14px 0 6px; font-weight: 700; }
+        input, select, button { box-sizing: border-box; min-height: 48px; padding: 10px 14px; border: 2px solid #afbeb9; border-radius: 12px; font: inherit; }
+        input { width: 100%; } button { margin-top: 20px; border: 0; color: #fff; background: #356f65; font-weight: 700; cursor: pointer; }
+        .status { min-height: 32px; margin-top: 16px; font-weight: 700; } .result { margin-top: 16px; padding: 16px; border-radius: 12px; background: #edf7f1; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<main class="panel">
+    <h1>普通话 Whisper V3 转写测试</h1>
+    <p>此工具只验证项目实际使用的远程 Whisper large-v3 链路。浏览器仅选择已录制的音频文件，不使用 Web Speech API。请在已登录的老人端会话中打开。</p>
+    <label for="audio">匿名音频文件</label>
+    <input id="audio" type="file" accept="audio/wav,audio/mpeg,audio/mp4,audio/ogg,audio/webm,.wav,.mp3,.m4a,.ogg,.webm">
+    <label for="reference">人工校对的标准文本（可选）</label>
+    <input id="reference" placeholder="例如：今天星期三">
+    <button id="start">提交到 Whisper V3</button>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="result" id="result" hidden></div>
+</main>
+<script>
+const normalizeText = value => String(value || '').trim().toLowerCase().replace(/[\s，。！？、,.!?；;：:（）()"“”‘’'\-]/g, '');
+const editDistance = (reference, prediction) => {
+    const a = Array.from(normalizeText(reference)), b = Array.from(normalizeText(prediction));
+    let previous = Array.from({length: b.length + 1}, (_, i) => i);
+    for (let row = 1; row <= a.length; row += 1) {
+        const current = [row];
+        for (let column = 1; column <= b.length; column += 1) current.push(Math.min(current[column - 1] + 1, previous[column] + 1, previous[column - 1] + (a[row - 1] === b[column - 1] ? 0 : 1)));
+        previous = current;
+    }
+    return previous[b.length];
+};
+document.getElementById('start').addEventListener('click', async () => {
+    const audio = document.getElementById('audio').files[0];
+    const reference = document.getElementById('reference').value.trim();
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    if (!audio) { status.textContent = '请选择一段音频文件。'; return; }
+    const data = new FormData(); data.set('audio', audio); data.set('language', 'mandarin');
+    const started = performance.now(); status.textContent = '正在提交到远程 Whisper V3…'; result.hidden = true;
+    try {
+        const response = await fetch('/speech/recognize', { method: 'POST', body: data });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || '转写失败。');
+        const latency = ((performance.now() - started) / 1000).toFixed(3);
+        const cer = reference ? (editDistance(reference, payload.text) / Array.from(normalizeText(reference)).length).toFixed(4) : '未提供标准文本';
+        status.textContent = `Whisper V3 已完成转写，用时 ${latency} 秒。`;
+        result.textContent = `识别文本：${payload.text}\nCER：${cer}`; result.hidden = false;
+    } catch (error) { status.textContent = error.message || '转写失败。'; }
+});
+</script>
+</body>
+</html>

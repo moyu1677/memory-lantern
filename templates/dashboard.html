@@ -18,7 +18,7 @@
                 <a class="dashboard-rail-link" href="{{ url_for('assistant_page') }}" title="智慧陪伴">
                     <span aria-hidden="true">💬</span><small>陪伴</small>
                 </a>
-                <a class="dashboard-rail-link" href="{{ url_for('elder_voice_library') }}" title="选择陪伴声音">
+                <a class="dashboard-rail-link" href="{{ url_for('elder_voice_library') }}" title="{{ _('选择陪伴声音') }}">
                     <span aria-hidden="true">🎙</span><small>声音</small>
                 </a>
                 <a class="dashboard-rail-link" href="{{ url_for('idiom_game_page') }}" title="成语接龙">
@@ -289,7 +289,7 @@
                         </a>
                         <a class="dashboard-action-row" href="{{ url_for('elder_voice_library') }}">
                             <span class="dashboard-action-icon action-green" aria-hidden="true">🎙</span>
-                            <span><strong>选择陪伴声音</strong><small>从家人已授权的声音库中选择您想听到的声音</small></span>
+                            <span><strong>{{ _('选择陪伴声音') }}</strong><small>{{ _('从家人已授权的声音库中选择您想听到的声音') }}</small></span>
                             <b aria-hidden="true">→</b>
                         </a>
                         <a class="dashboard-action-row" href="{{ url_for('idiom_game_page') }}">

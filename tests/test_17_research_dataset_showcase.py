@@ -21,16 +21,11 @@ def test_research_dataset_page_shows_only_mandarin_and_cantonese(
     assert response.status_code == 200
     assert "测试集与验证记录" in html
     assert "Common Voice 北京普通话子集" in html
-    assert "腾讯云 16k_zh_en（主）" in html
-    assert "浏览器 Web Speech API（备用）" in html
+    assert "远程 Whisper large-v3" in html
+    assert "浏览器仅录音/上传" in html
     assert "Google FLEURS 粤语测试集" in html
-    assert "99/100" in html
-    assert "99.0%" in html
-    assert "92.93%" in html
-    assert "7.07%" in html
-    assert "10.0084秒" in html
-    assert "93.62%" in html
-    assert "已完成" in html
+    assert "待 Whisper V3 复测" in html
+    assert "当前没有可展示的有效识别指标" in html
     assert "Teochew-Wild" not in html
     assert "原始录音" in html
 

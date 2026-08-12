@@ -32,8 +32,15 @@ def test_elder_portal_exposes_assessment_controls_and_two_voice_interaction_mode
     assert 'id="live-call-btn"' in page
     assert "toggleLiveConversation()" in page
     assert "handleRecognisedText" in page
-    assert "autoSend: false" in page
+    assert "toggleCloudRecording(speechMode, false)" in page
+    assert "Whisper V3" in page
+    assert "SpeechRecognition" not in page
+    assert "webkitSpeechRecognition" not in page
+    assert "腾讯云" not in page
     assert "resumeLive" in page
+    assert "当前家人声音" in page
+    assert "陪伴聊天和认知测试都会使用它。" in page
+    assert "'/voice/test-narration'" in page
 
 
 def test_elder_portal_english_translates_the_new_interaction_controls(

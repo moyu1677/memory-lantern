@@ -124,6 +124,7 @@ def test_mandarin_visualization_generates_valid_png_and_worst_samples(tmp_path):
     assert all(path.exists() and path.stat().st_size > 0 for path in outputs)
 
 
-def test_server_exposes_mandarin_only_as_an_authenticated_asr_language(app_module):
-    assert app_module.TENCENT_ASR_ENGINES["mandarin"]
-    assert app_module.SPEECH_LANGUAGE_LABELS["mandarin"] == "普通话"
+def test_server_exposes_the_original_whisper_chinese_and_english_modes(app_module):
+    assert app_module.ASR_LANGUAGE_OPTIONS["auto"]["whisper_language"] == "auto"
+    assert app_module.ASR_LANGUAGE_OPTIONS["mandarin"]["whisper_language"] == "zh"
+    assert app_module.ASR_LANGUAGE_OPTIONS["english"]["whisper_language"] == "en"
