@@ -563,23 +563,24 @@
 
         .control-panel {
             display: grid;
-            grid-template-columns: max-content minmax(180px, 1fr) minmax(220px, 1.15fr) max-content;
+            grid-template-columns: 220px 340px 240px minmax(0, 1fr);
             grid-template-areas:
                 "test voice language knowledge"
                 "input input input input";
-            gap: 0 12px;
+            gap: 0 10px;
             padding: 9px 20px 12px;
         }
         .test-controls { grid-area: test; min-height: 46px; padding: 0; }
         .family-voice-status { grid-area: voice; min-height: 46px; padding: 6px 8px; gap: 9px; border: 0; border-radius: 12px; background: #eef8f3; }
         .family-voice-status-icon { width: 32px; height: 32px; font-size: 1rem; }
-        .family-voice-status-copy strong { font-size: .9rem; }
+        .family-voice-status-copy { overflow: hidden; }
+        .family-voice-status-copy strong { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .family-voice-label { display: none; }
         .family-voice-status-copy small { display: none; }
+        .family-voice-status a { white-space: nowrap; }
         .voice-settings { grid-area: language; padding: 0; gap: 10px; border: 0; }
-        .setting-copy { min-width: 0; }
-        .setting-copy label { font-size: 15px; }
-        .setting-copy small { display: none; }
-        .voice-settings select { min-height: 44px; padding: 7px 35px 7px 12px; font-size: 15px; }
+        .setting-copy { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+        .voice-settings select { min-width: 0; min-height: 44px; padding: 7px 35px 7px 12px; font-size: 15px; }
         .knowledge-toggle { grid-area: knowledge; min-height: 46px; padding: 5px 8px; gap: 9px; border: 0; border-radius: 12px; background: #f1f5f3; }
         .knowledge-toggle-copy strong { font-size: 14px; }
         .knowledge-toggle-copy small { display: none; }
@@ -593,7 +594,7 @@
         .input-guide-copy small { font-size: 12px; }
         #user-input { min-height: 70px; max-height: 145px; padding: 13px 18px; font-size: 19px; line-height: 1.45; }
         .control-panel button { min-height: 44px; padding: 8px 13px; font-size: 15px; }
-        #start-test-btn { min-width: 150px; }
+        #start-test-btn { width: 100%; min-width: 0; }
 
         @media (max-width: 920px) {
             .control-panel {
@@ -1010,6 +1011,33 @@
             overflow: hidden;
             background: rgba(250, 253, 251, 0.94);
             box-shadow: 0 12px 26px rgba(31, 105, 91, 0.08);
+        }
+
+        .chat-container.is-testing .control-panel {
+            display: block;
+            padding: 0;
+        }
+
+        .chat-container.is-testing .family-voice-status {
+            min-height: 58px;
+            padding: 10px 16px;
+            border: 0;
+            border-bottom: 1px solid var(--line);
+            border-radius: 0;
+            background: linear-gradient(90deg, #eef8f3, #fbfdfc);
+        }
+
+        .chat-container.is-testing .family-voice-status-copy {
+            overflow: visible;
+        }
+
+        .chat-container.is-testing .family-voice-status-copy strong {
+            overflow: visible;
+            text-overflow: clip;
+        }
+
+        .chat-container.is-testing .family-voice-label {
+            display: inline;
         }
 
         .chat-container.is-testing .test-controls,
@@ -1435,10 +1463,10 @@
                 <span class="family-voice-status-icon" aria-hidden="true">🎙️</span>
                 <div class="family-voice-status-copy">
                     {% if voice_profile_label %}
-                        <strong>{{ _('当前家人声音：') }}{{ voice_profile_label }}</strong>
+                        <strong><span class="family-voice-label">{{ _('当前家人声音：') }}</span>{{ voice_profile_label }}</strong>
                         <small>{{ _('陪伴聊天和认知测试的题目、反馈都会使用这条声音。') }}</small>
                     {% else %}
-                        <strong>{{ _('当前家人声音：') }}{{ _('尚未选择') }}</strong>
+                        <strong><span class="family-voice-label">{{ _('当前家人声音：') }}</span>{{ _('尚未选择') }}</strong>
                         <small>{{ _('请先从已绑定家人的声音库中选择一条；选择后，陪伴聊天和认知测试都会使用它。') }}</small>
                     {% endif %}
                 </div>
@@ -1571,7 +1599,11 @@
 
             const progressElement = document.getElementById('test-progress');
             progressElement.hidden = !active;
-            progressElement.innerText = active ? `测试进度：${progress}` : '';
+            progressElement.innerText = active
+                ? (assessmentLanguage === 'en'
+                    ? `Assessment progress: ${progress}`
+                    : `测试进度：${progress}`)
+                : '';
             const headerProgress = document.getElementById('test-header-progress');
             headerProgress.hidden = !active;
             headerProgress.innerText = active
@@ -2371,7 +2403,9 @@
                 document.getElementById('user-input').value.trim()
             );
             recordBtn.innerText = isTesting
-                ? (hasTestAnswer ? '↻ 重新录音' : '🎤 录音回答')
+                ? (hasTestAnswer
+                    ? (interfaceLanguage === 'en' ? '↻ Record again' : '↻ 重新录音')
+                    : (interfaceLanguage === 'en' ? '🎤 Record an answer' : '🎤 录音回答'))
                 : '🎤 点击说话';
             recordBtn.style.backgroundColor = '';
             document.getElementById('speech-mode').disabled = false;
